@@ -24,7 +24,7 @@ CONFIG = os.path.join(CFG, "config.json")
 REPO_URL = "https://github.com/FHunist/claude-meter"
 TTL    = 240                      # s; scheduled runs re-ping, rapid clicks reuse cache
 IS_MAC = (platform.system() == "Darwin")
-ALERT_LEVELS = [80, 95]           # notify when a window crosses these %
+ALERT_LEVELS = [50, 80, 95]       # notify when a window crosses these %
 ACTIVE_MIN   = 30                 # a session is "active" if it logged within this many minutes
 L5, L7 = 5 * 3600, 7 * 86400      # window lengths (s), for projection
 WARMUP = 45 * 60                  # s; floor on elapsed so the projection doesn't spike early
@@ -235,7 +235,7 @@ def forecast(util,reset,L):
     return (f"→ ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
-    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal",
+    cfg={"alert_levels":[50,80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal",
          "show":{"forecast":True,"trend":True,"sessions":True,"insight":True,"cost":True,"links":True}}
     try:
         u=json.load(open(CONFIG))
@@ -254,6 +254,14 @@ def status_banner(status):
     if "queue"  in s: return ("⏳ Requests are being queued (throttled)","#ff9f0a")
     if "warn"   in s: return ("⚠︎ Approaching your limit","#ff9f0a")
     return (f"status: {status}","#ff9f0a")
+
+def status_dot(status):
+    """Tiny menu-bar indicator (colored emoji) shown when usage is throttled."""
+    s=(status or "").lower()
+    if not s or s=="allowed": return ""
+    if "reject" in s: return "⛔ "
+    if "queue"  in s: return "⏳ "
+    return "⚠️ "
 
 def record_trend(real):
     """Append the account-wide u5/u7 sample (deduped by ts); keep ~24h. Returns the series."""
@@ -281,6 +289,15 @@ def sparkline(data,hours=24,width=24):
     BL="▁▂▃▄▅▆▇█"
     return "".join("·" if b is None else BL[min(int(b*7.999),7)] for b in bins)
 
+def burn_rate(data,mins=45):
+    """Recent 5h-utilization slope as %/hour (0 on reset/idle, None if too few samples)."""
+    if not data: return None
+    now=time.time(); pts=[(ts,u5) for ts,u5,_ in data if ts>=now-mins*60]
+    if len(pts)<2: return None
+    dt=pts[-1][0]-pts[0][0]
+    if dt<300: return None
+    return max((pts[-1][1]-pts[0][1])/dt*3600*100, 0.0)
+
 def insight(tw,by_model):
     total=tw["in"]+tw["cr"]+tw["cw"]
     if total<100_000: return None
@@ -302,7 +319,10 @@ def check_alerts(real, levels):
                                   ("7d",real.get("u7"),real.get("r7"),"weekly")):
         if util is None or not reset: continue
         pct=util*100; s=st.get(key) or {}
-        if s.get("reset")!=reset: s={"reset":reset,"notified":0}     # window rolled over
+        if s.get("reset")!=reset:                                    # window rolled over
+            if s.get("reset") is not None and s.get("notified",0)>0: # only if we'd warned last window
+                notify("claude-meter", f"{label} window reset — full capacity again")
+            s={"reset":reset,"notified":0}; changed=True
         crossed=max([t for t in levels if pct>=t] or [0])
         if crossed>s.get("notified",0):
             notify("claude-meter", f"{label} usage at {pct:.0f}% — resets in {cd(reset)}")
@@ -405,11 +425,12 @@ def main():
     # SF Symbols ignore color= — each row tints its icon via its own sfcolor=light,dark
     SH=cfg["show"]; OUT=[]; p=OUT.append   # buffer so hidden sections leave no orphan separators
 
+    dot=status_dot(real.get("status") if real else None)
     if cfg["dual_title"]:
-        p(f"{gauge(b_pct)} {b_pct:.0f}  {gauge(w_pct)} {w_pct:.0f} | color={clr(max(b_pct,w_pct))}")
+        p(f"{dot}{gauge(b_pct)} {b_pct:.0f}  {gauge(w_pct)} {w_pct:.0f} | color={clr(max(b_pct,w_pct))}")
     else:
         tp = w_pct if cfg.get("title_window")=="weekly" else b_pct
-        p(f"{gauge(tp)} {tp:.0f}% | color={clr(tp)}")
+        p(f"{dot}{gauge(tp)} {tp:.0f}% | color={clr(tp)}")
     p("---")
     sb=status_banner(real.get("status") if real else None)
     if sb:
@@ -427,7 +448,12 @@ def main():
     if SH["trend"]:
         spark=sparkline(trend_data,width=16) if accountwide else None
         if spark:
-            p(f"5h 24h ▕{spark}▏ {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
+            br=burn_rate(trend_data)                          # recent slope (best when active)
+            if (br is None or br<0.5) and real and real.get("r5"):   # idle/sparse → window-average
+                el=L5-(real["r5"]-time.time())
+                if el>300: br=real["u5"]/max(el,WARMUP)*3600*100
+            brtxt=f" · ↑{br:.0f}%/hr" if (br and br>=1) else ""
+            p(f"5h 24h ▕{spark}▏ {b_pct:.0f}%{brtxt} | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
     p("---")
     p(f"{srcline} · ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     if SH["sessions"]:

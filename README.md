@@ -41,10 +41,10 @@ Claude Code shows your usage with `/usage`, but only when you go looking. claude
 
 - **Live 5h + weekly % gauges**, color-coded, from Anthropic's rate-limit headers.
 - **Exact reset times** — clock time *and* countdown (`resets Tue 11:00 PM · in 4d 12h`).
-- **🔔 Threshold alerts** — a desktop notification when a window crosses 80% / 95%, once per crossing per window (runs in the background, even with the menu closed).
+- **🔔 Threshold alerts** — a desktop notification when a window crosses 50% / 80% / 95%, once per crossing per window (runs in the background, even with the menu closed) — plus a heads-up when a window **resets** after you'd been warned.
 - **⏳ Projected exhaustion** — "on pace to hit the weekly cap ~Mon 2 AM" from your current burn.
-- **🚦 Throttle status** — a banner if Anthropic is warning / queueing / rejecting your requests, so you know *why* Claude feels slow.
-- **📈 Utilization trend** — a 24-hour sparkline of your 5h window, **account-wide** (sampled from the headers each refresh).
+- **🚦 Throttle status** — a banner if Anthropic is warning / queueing / rejecting your requests, plus a **⛔/⏳ dot in the menu bar** so you catch it without opening the menu.
+- **📈 Utilization trend + burn rate** — a 24-hour sparkline of your 5h window with the current burn rate (e.g. `↑32%/hr`), **account-wide** (sampled from the headers each refresh).
 - **Active sessions (this machine)** — sessions with log activity in the last 30 min, ranked by spend, with peak context size and subagent count; **click one to reopen it in a terminal** (runs `claude --resume` for you).
 - **$ proxy stats** — per-day burn chart, today / week / 30d / all-time, and a by-model breakdown.
 - **💡 Insight line** — one computed tip from your week (e.g. "95% of input is cached context — `/compact` more often").
@@ -92,11 +92,11 @@ The installer installs SwiftBar via Homebrew if needed, copies `claude-meter.5m.
 ## Customize
 
 - **Refresh interval:** rename the file — `claude-meter.2m.py` (2 min), `.10m.py`, `.1h.py`, …
-- **Alert thresholds:** edit `ALERT_LEVELS` near the top of the plugin (default `[80, 95]`).
+- **Alert thresholds:** edit `ALERT_LEVELS` near the top of the plugin (default `[50, 80, 95]`).
 - **Active-session window:** edit `ACTIVE_MIN` (default `30` min) — how recently a session must have logged to count as active.
 - **Config file (no code edits):** create `~/.config/claude-meter/config.json` with any of:
   ```json
-  {"alert_levels": [80, 95], "active_min": 30, "dual_title": false, "title_window": "5h", "terminal": "Terminal"}
+  {"alert_levels": [50, 80, 95], "active_min": 30, "dual_title": false, "title_window": "5h", "terminal": "Terminal"}
   ```
   `dual_title: true` shows **both** windows in the menu bar (`◔35 ◑48`); `title_window: "weekly"` makes the single gauge track the weekly window instead of the 5h. `terminal` picks where a clicked session reopens: `"Terminal"` (default) or `"iTerm"` — both reliable via AppleScript; `"Warp"` also works but drives the app with simulated keystrokes (needs Accessibility permission and can be flaky). On first click macOS asks to let SwiftBar control the terminal → **Allow**.
 - **Show / hide sections:** add a `show` object to trim the dropdown to exactly what you want — set any to `false`:
