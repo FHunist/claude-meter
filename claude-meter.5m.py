@@ -278,48 +278,50 @@ def main():
     last7=[(d,daily.get(d,0.0)) for d in last7]
     dmax=max((c for _,c in last7),default=0) or 1.0
     since=earliest.strftime("%b %d") if earliest else "?"
-    MONO="font=Menlo size=13"; BIG="font=Menlo size=15"; SM="font=Menlo size=12"; GRAY="color=#8e8e93"
+    MONO="font=Menlo size=13"; BIG="font=Menlo size=15"; SM="font=Menlo size=12"
+    TXT="color=#1d1d1f,#f5f5f7"   # primary text — high contrast in light & dark
+    DIM="color=#6e6e73,#aeaeb2"   # secondary captions — readable, not faint
     p=print
 
     p(f"{gauge(b_pct)} {b_pct:.0f}% | color={clr(b_pct)}")
     p("---")
-    p(f"Usage · {'account-wide (all machines)' if accountwide else 'local estimate'} | size=11 {GRAY}")
+    p(f"Usage · {'account-wide (all machines)' if accountwide else 'local estimate'} | size=11 {DIM}")
     p("---")
-    p(f"5-hour window   ·  {b_reset} | size=11")
+    p(f"5-hour window   ·  {b_reset} | size=11 {TXT}")
     p(f"{pbar(b_pct)} {b_pct:.0f}% | {BIG} color={clr(b_pct)}")
     if proj5: p(f"↗ on pace to hit the 5h cap ~{when(proj5)} | size=11 color=#ff3b30")
     p("---")
-    p(f"Weekly window (all models)  ·  {w_reset} | size=11")
+    p(f"Weekly window (all models)  ·  {w_reset} | size=11 {TXT}")
     p(f"{pbar(w_pct)} {w_pct:.0f}% | {BIG} color={clr(w_pct)}")
     if proj7: p(f"↗ on pace to hit the weekly cap ~{when(proj7)} | size=11 color=#ff3b30")
-    elif accountwide: p(f"↗ on pace — clears the week before reset ✓ | size=11 {GRAY}")
+    elif accountwide: p(f"↗ on pace — clears the week before reset ✓ | size=11 {DIM}")
     p("---")
-    p(f"{srcline} | size=11")
-    p(f"↻ Refresh now (live API) | bash={SELF} param1=--force terminal=false refresh=true")
+    p(f"{srcline} | size=11 {TXT}")
+    p(f"↻ Refresh now (live API) | {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"Active sessions · this machine (last {ACTIVE_MIN}m) | size=11 {GRAY}")
+    p(f"Active sessions · this machine (last {ACTIVE_MIN}m) | size=11 {DIM}")
     if heavy:
-        p(f"click a row to copy its claude --resume cmd | size=10 {GRAY}")
+        p(f"click a row to copy its claude --resume cmd | size=10 {DIM}")
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
             sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
             ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
-            p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} bash={SELF} "
+            p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
               f"param1=--copy param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
     else:
-        p(f"no active sessions in the last {ACTIVE_MIN}m | {SM} {GRAY}")
+        p(f"no active sessions in the last {ACTIVE_MIN}m | {SM} {DIM}")
     p("---")
-    p(f"Per day (last 7) — local $ proxy | size=11 {GRAY}")
+    p(f"Per day (last 7) — local $ proxy | size=11 {DIM}")
     for d,c in last7:
         tag=" ←today" if d==today else ""
-        p(f"{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM}")
+        p(f"{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM} {TXT}")
     p("---")
-    p(f"Today ${win['today']:,.0f}  ·  this week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO}")
-    p(f"All-time ${win['all']:,.0f}   (since {since}) | {MONO}")
-    p(f"$ = equivalent API cost (local proxy, not billed on Pro/Max) | size=10 {GRAY}")
-    p("By model | size=11")
+    p(f"Today ${win['today']:,.0f}  ·  this week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
+    p(f"All-time ${win['all']:,.0f}   (since {since}) | {MONO} {TXT}")
+    p(f"$ = equivalent API cost (local proxy, not billed on Pro/Max) | size=10 {DIM}")
+    p(f"By model | size=11 {TXT}")
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
-        p(f"{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM}")
+        p(f"{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
 
 if __name__=="__main__":
     main()
