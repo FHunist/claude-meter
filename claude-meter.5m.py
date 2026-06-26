@@ -199,14 +199,6 @@ def sftint(name,hexcolor):
         "scale":"medium","weight":"semibold"}).encode()).decode()
     return f"sfimage={name} sfcolor={hexcolor} sfconfig={cfg}"
 
-def project(util,reset,L):
-    """Projected exhaustion epoch if on pace to hit the cap before reset, else None."""
-    if util is None or not reset: return None
-    now=time.time(); elapsed=L-(reset-now)
-    if elapsed<=300 or util<=0.001: return None
-    proj=now+elapsed*(1.0-util)/util
-    return proj if proj<reset else None
-
 def dur(secs):
     m=int(max(secs,0)//60)
     if m<60: return f"{m}m"
@@ -235,7 +227,7 @@ def forecast(util,reset,L):
     return (f"→ ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
-    cfg={"alert_levels":[50,80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal",
+    cfg={"alert_levels":list(ALERT_LEVELS),"active_min":ACTIVE_MIN,"dual_title":False,"title_window":"5h","terminal":"Terminal",
          "show":{"forecast":True,"trend":True,"sessions":True,"insight":True,"cost":True,"links":True}}
     try:
         u=json.load(open(CONFIG))
