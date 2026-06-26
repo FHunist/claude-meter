@@ -142,7 +142,8 @@ def hbar(frac,width=10):
     frac=max(0.0,min(frac,1.0)); total=round(frac*width*8); full,rem=divmod(total,8)
     return ("█"*full+(EIGHTHS[rem-1] if rem else "")).ljust(width)
 def pbar(pct,width=14):
-    fill=int(round(min(pct,100)/100*width)); return "▕"+"█"*fill+"░"*(width-fill)+"▏"
+    frac=max(0.0,min(pct/100.0,1.0)); total=round(frac*width*8); full,rem=divmod(total,8)
+    return "▕"+("█"*full+(EIGHTHS[rem-1] if rem else "")).ljust(width,"░")+"▏"
 def clr(pct):
     return "#34c759" if pct<50 else ("#ff9f0a" if pct<80 else "#ff3b30")
 def cd(epoch):
@@ -356,28 +357,24 @@ def main():
     if sb:
         p(f"{sb[0]} | size=13 color={sb[1]}")
         p("---")
-    p(f"Usage · {'account-wide (all machines)' if accountwide else 'local estimate'} | size=11 {DIM}")
-    p("---")
-    p(f"5-hour window   ·  {b_reset} | size=11 {TXT}")
-    p(f"{pbar(b_pct)} {b_pct:.0f}% | {BIG} color={clr(b_pct)}")
-    if proj5: p(f"↗ on pace to hit the 5h cap ~{when(proj5)} | size=11 color=#ff3b30")
-    p("---")
-    p(f"Weekly window (all models)  ·  {w_reset} | size=11 {TXT}")
-    p(f"{pbar(w_pct)} {w_pct:.0f}% | {BIG} color={clr(w_pct)}")
-    if proj7: p(f"↗ on pace to hit the weekly cap ~{when(proj7)} | size=11 color=#ff3b30")
-    elif accountwide: p(f"↗ on pace — clears the week before reset ✓ | size=11 {DIM}")
-    p("---")
-    p(f"{srcline} | size=11 {TXT}")
-    p(f"↻ Refresh now (live API) | {TXT} bash={SELF} param1=--force terminal=false refresh=true")
+    # two windows — one bold bar line + one small meta line each
+    for label,pct,reset,proj,is_week in (("5h  ",b_pct,b_reset,proj5,False),
+                                         ("week",w_pct,w_reset,proj7,True)):
+        p(f"{label} {pbar(pct)} {pct:>3.0f}% | {BIG} color={clr(pct)}")
+        if proj:
+            p(f"      {reset}  ·  ↗ on pace to cap ~{when(proj)} | font=Menlo size=11 color=#ff9f0a")
+        elif is_week and accountwide:
+            p(f"      {reset}  ·  clears before reset ✓ | font=Menlo size=11 {DIM}")
+        else:
+            p(f"      {reset} | font=Menlo size=11 {DIM}")
     spark=sparkline(trend_data) if accountwide else None
     if spark:
-        p("---")
-        p(f"5h utilization · last 24h (account-wide) | size=11 {DIM}")
-        p(f"▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT}")
+        p(f"📈 5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT}")
     p("---")
-    p(f"Active sessions · this machine (last {cfg['active_min']}m) | size=11 {DIM}")
+    p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
+    p("---")
+    p(f"⚡ Active sessions · this machine · click to resume | size=11 {DIM}")
     if heavy:
-        p(f"click a row to copy its claude --resume cmd | size=10 {DIM}")
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
             sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
@@ -386,25 +383,27 @@ def main():
               f"param1=--copy param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
     else:
         p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
+    ins=insight(tw,by_model)
+    if ins:
+        p("---")
+        p(f"{ins} | size=11 {TXT}")
     p("---")
-    p(f"Per day (last 7) — local $ proxy | size=11 {DIM}")
+    # collapsed into a submenu so the menu stays short on small screens
+    p(f"💵 Cost & history (local $ proxy) | {SM} {TXT}")
+    p(f"--Per day (last 7) | size=11 {DIM}")
     for d,c in last7:
         tag=" ←today" if d==today else ""
-        p(f"{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM} {TXT}")
-    p("---")
-    p(f"Today ${win['today']:,.0f}  ·  this week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
-    p(f"All-time ${win['all']:,.0f}   (since {since}) | {MONO} {TXT}")
-    p(f"$ = equivalent API cost (local proxy, not billed on Pro/Max) | size=10 {DIM}")
-    ins=insight(tw,by_model)
-    if ins: p(f"{ins} | size=11 {TXT}")
-    p(f"By model | size=11 {TXT}")
+        p(f"--{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM} {TXT}")
+    p(f"--Today ${win['today']:,.0f}  ·  week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
+    p(f"--All-time ${win['all']:,.0f}  (since {since}) | {MONO} {TXT}")
+    p(f"--By model | size=11 {DIM}")
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
-        p(f"{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
-    p("---")
-    p(f"Links | size=11 {DIM}")
-    p(f"↗ claude-meter on GitHub | href={REPO_URL}")
-    p(f"📁 Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false")
-    p(f"🩺 Anthropic status | href=https://status.anthropic.com")
+        p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
+    p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
+    p(f"🔗 Links | {SM} {TXT}")
+    p(f"--↗ claude-meter on GitHub | href={REPO_URL}")
+    p(f"--📁 Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false")
+    p(f"--🩺 Anthropic status | href=https://status.anthropic.com")
 
 if __name__=="__main__":
     main()

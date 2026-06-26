@@ -3,26 +3,23 @@
 A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall.
 
 ```
-  ◔ 35%        ← menu bar: a disc that fills with your 5h load, color-coded
+  ◔ 45%        ← menu bar: a disc that fills with your 5h load, color-coded
   ──────────────────────────────────────────────────────────
-  Usage · account-wide (all machines)
+  5h   ▕██████▎░░░░░░░▏  45%
+       resets Fri 1:50 PM · 3h01m · ↗ on pace to cap ~1:13 PM
+  week ▕██████▉░░░░░░░▏  49%
+       resets Tue 11:00 PM · 4d12h · clears before reset ✓
+  📈 5h · 24h  ▕▁▂▃▅▆█▇▅▃▂▁·····▂▄▆▏  now 45%
   ──────────────────────────────────────────────────────────
-  5-hour window     ·  resets Fri 1:50 PM · in 3h35m
-  ▕█████░░░░░░░░░▏ 35%
-  ↗ on pace to hit the 5h cap ~Fri 12:52 PM
+  ● live — Anthropic headers · 2m ago · ↻ refresh
   ──────────────────────────────────────────────────────────
-  Weekly window     ·  resets Tue 11:00 PM · in 4d 12h
-  ▕███████░░░░░░░▏ 48%
-  ──────────────────────────────────────────────────────────
-  ● live — Anthropic headers · updated just now
-  ↻ Refresh now (live API)
-  ──────────────────────────────────────────────────────────
-  5h utilization · last 24h (account-wide)
-  ▕▁▂▃▅▄▆█▇▅▃▂▁·····▂▄▆▏  now 35%
-  ──────────────────────────────────────────────────────────
-  Active sessions · this machine (last 30m)
+  ⚡ Active sessions · this machine · click to resume
   Set up mosh via ZeroTier   $224.95 · ctx 294k · 2 subagents · 4m ago
-  …per-day burn chart · $ stats · by-model breakdown…
+  ──────────────────────────────────────────────────────────
+  💡 95% of input is cached context — /compact more often
+  ──────────────────────────────────────────────────────────
+  💵 Cost & history (local $ proxy)   ▸   (per-day · totals · by-model)
+  🔗 Links                            ▸   (repo · ~/.claude · status)
 ```
 
 The menu-bar glyph is itself a gauge that fills with your 5‑hour load…
