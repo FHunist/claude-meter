@@ -27,6 +27,7 @@ IS_MAC = (platform.system() == "Darwin")
 ALERT_LEVELS = [80, 95]           # notify when a window crosses these %
 ACTIVE_MIN   = 30                 # a session is "active" if it logged within this many minutes
 L5, L7 = 5 * 3600, 7 * 86400      # window lengths (s), for projection
+WARMUP = 45 * 60                  # s; floor on elapsed so the projection doesn't spike early
 
 # ---- cost proxy (local $ only) -------------------------------------------
 PRICES = {
@@ -225,7 +226,9 @@ def forecast(util,reset,L):
     if util is None or not reset: return None
     elapsed=L-(reset-now)
     if elapsed<=300 or util<=0.001: return None
-    rate=util/elapsed; end=rate*L
+    rate=util/max(elapsed,WARMUP)            # warmup floor damps the early-window spike
+    remaining=reset-now
+    end=util+rate*remaining                   # projected utilization at reset
     if end>=1.0:
         proj=now+(1.0-util)/rate
         return (f"→ caps {when(proj)} · ~{dur(reset-proj)} locked", proj_color(proj,reset,L))
