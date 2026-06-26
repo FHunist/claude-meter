@@ -1,5 +1,9 @@
 # claude-meter
 
+![platform: macOS](https://img.shields.io/badge/platform-macOS-blue)
+![license: MIT](https://img.shields.io/badge/license-MIT-green)
+![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
+
 A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall.
 
 ```
