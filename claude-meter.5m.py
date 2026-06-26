@@ -228,9 +228,9 @@ def forecast(util,reset,L):
     rate=util/elapsed; end=rate*L
     if end>=1.0:
         proj=now+(1.0-util)/rate
-        return (f"at this rate → 100% by {when(proj)} (~{dur(reset-proj)} locked out)",
+        return (f"→ 100% by {when(proj)} (~{dur(reset-proj)} locked out)",
                 proj_color(proj,reset,L))
-    return (f"at this rate → ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
+    return (f"→ ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
     cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal",

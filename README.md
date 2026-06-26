@@ -6,9 +6,9 @@ A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour
   ◔ 45%        ← menu bar: a disc that fills with your 5h load, color-coded
   ──────────────────────────────────────────────────────────
   5h   ▕██████▎░░░░░░░▏  45%
-       resets Fri 1:50 PM · 3h01m · at this rate → ~89% at reset
+       resets Fri 1:50 PM · 3h01m · → ~89% at reset
   week ▕██████▉░░░░░░░▏  49%
-       resets Tue 11:00 PM · 4d12h · at this rate → 100% by Mon 12:30 AM (~1d22h locked out)
+       resets Tue 11:00 PM · 4d12h · → 100% by Mon 12:30 AM (~1d22h locked out)
   📈 5h · 24h  ▕▁▂▃▅▆█▇▅▃▂▁·····▂▄▆▏  now 45%
   ──────────────────────────────────────────────────────────
   ● live — Anthropic headers · 2m ago · ↻ refresh
