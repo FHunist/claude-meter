@@ -369,11 +369,11 @@ def main():
             p(f"      {reset} | font=Menlo size=11 {DIM}")
     spark=sparkline(trend_data) if accountwide else None
     if spark:
-        p(f"📈 5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT}")
+        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} sfimage=chart.line.uptrend.xyaxis")
     p("---")
     p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"⚡ Active sessions · this machine · click to resume | size=11 {DIM}")
+    p(f"Active sessions · this machine · click to resume | size=11 {DIM} sfimage=bolt.fill")
     if heavy:
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
@@ -386,10 +386,10 @@ def main():
     ins=insight(tw,by_model)
     if ins:
         p("---")
-        p(f"{ins} | size=11 {TXT}")
+        p(f"{ins.replace('💡 ','')} | size=11 {TXT} sfimage=lightbulb.fill")
     p("---")
     # collapsed into a submenu so the menu stays short on small screens
-    p(f"💵 Cost & history (local $ proxy) | {SM} {TXT}")
+    p(f"Cost & history (local $ proxy) | {SM} {TXT} sfimage=dollarsign.circle")
     p(f"--Per day (last 7) | size=11 {DIM}")
     for d,c in last7:
         tag=" ←today" if d==today else ""
@@ -400,10 +400,10 @@ def main():
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
         p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
     p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
-    p(f"🔗 Links | {SM} {TXT}")
-    p(f"--↗ claude-meter on GitHub | href={REPO_URL}")
-    p(f"--📁 Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false")
-    p(f"--🩺 Anthropic status | href=https://status.anthropic.com")
+    p(f"Links | {SM} {TXT} sfimage=link")
+    p(f"--claude-meter on GitHub | href={REPO_URL} sfimage=chevron.left.forwardslash.chevron.right")
+    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false sfimage=folder")
+    p(f"--Anthropic status | href=https://status.anthropic.com sfimage=antenna.radiowaves.left.and.right")
 
 if __name__=="__main__":
     main()
