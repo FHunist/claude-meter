@@ -97,6 +97,11 @@ The installer installs SwiftBar via Homebrew if needed, copies `claude-meter.5m.
   {"alert_levels": [80, 95], "active_min": 30, "dual_title": false, "title_window": "5h", "terminal": "Terminal"}
   ```
   `dual_title: true` shows **both** windows in the menu bar (`◔35 ◑48`); `title_window: "weekly"` makes the single gauge track the weekly window instead of the 5h. `terminal` picks where a clicked session reopens: `"Terminal"` (default) or `"iTerm"` — both reliable via AppleScript; `"Warp"` also works but drives the app with simulated keystrokes (needs Accessibility permission and can be flaky). On first click macOS asks to let SwiftBar control the terminal → **Allow**.
+- **Show / hide sections:** add a `show` object to trim the dropdown to exactly what you want — set any to `false`:
+  ```json
+  {"show": {"forecast": true, "trend": true, "sessions": true, "insight": true, "cost": true, "links": true}}
+  ```
+  e.g. `{"show": {"cost": false, "links": false, "trend": false}}` gives a minimal menu. The menu-bar gauge and the 5h + weekly bars always show.
 - **Colors:** edit `clr()` (default: green <50%, amber <80%, red ≥80%).
 - **Offline fallback caps (optional):** drop `claude_limit.txt` (5h) / `claude_weekly_limit.txt` (weekly) into `~/.config/claude-meter/`, one number each — used only to scale the proxy bars when the API is down.
 

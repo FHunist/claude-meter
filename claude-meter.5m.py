@@ -233,12 +233,15 @@ def forecast(util,reset,L):
     return (f"at this rate → ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
-    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal"}
+    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal",
+         "show":{"forecast":True,"trend":True,"sessions":True,"insight":True,"cost":True,"links":True}}
     try:
         u=json.load(open(CONFIG))
         if isinstance(u,dict):
             for k in cfg:
-                if k in u: cfg[k]=u[k]
+                if k not in u: continue
+                if k=="show" and isinstance(u[k],dict): cfg["show"].update(u[k])  # merge partial
+                else: cfg[k]=u[k]
     except Exception: pass
     return cfg
 
@@ -398,7 +401,7 @@ def main():
     TXT="color=#1d1d1f,#f5f5f7"   # primary text — high contrast in light & dark
     DIM="color=#6e6e73,#aeaeb2"   # secondary captions — readable, not faint
     # SF Symbols ignore color= — each row tints its icon via its own sfcolor=light,dark
-    p=print
+    SH=cfg["show"]; OUT=[]; p=OUT.append   # buffer so hidden sections leave no orphan separators
 
     if cfg["dual_title"]:
         p(f"{gauge(b_pct)} {b_pct:.0f}  {gauge(w_pct)} {w_pct:.0f} | color={clr(max(b_pct,w_pct))}")
@@ -415,49 +418,61 @@ def main():
             ("5h  ",b_pct,b_reset,(real or {}).get("u5"),(real or {}).get("r5"),L5),
             ("week",w_pct,w_reset,(real or {}).get("u7"),(real or {}).get("r7"),L7)):
         p(f"{label} {pbar(pct)} {pct:>3.0f}% | {BIG} color={clr(pct)}")
-        fc=forecast(util,reset,L)
+        fc=forecast(util,reset,L) if SH["forecast"] else None
         if fc:
             p(f"      {resettext}  ·  {fc[0]} | font=Menlo size=11 color={fc[1]}")
         else:
             p(f"      {resettext} | font=Menlo size=11 {DIM}")
-    spark=sparkline(trend_data) if accountwide else None
-    if spark:
-        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
+    if SH["trend"]:
+        spark=sparkline(trend_data) if accountwide else None
+        if spark:
+            p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
     p("---")
     p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
-    p("---")
-    p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
-    if heavy:
-        p(f"click a row to reopen that session in a terminal | size=10 {DIM}")
-        for s in heavy:
-            lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
-            sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
-            ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
-            p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
-              f"param1=--resume param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
-    else:
-        p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
-    ins=insight(tw,by_model)
-    if ins:
+    if SH["sessions"]:
         p("---")
-        p(f"{ins.replace('💡 ','')} | size=11 {TXT} {sftint('lightbulb.fill','#e6a700')}")
-    p("---")
-    # collapsed into a submenu so the menu stays short on small screens
-    p(f"Cost & history (local $ proxy) | {SM} {TXT} {sftint('dollarsign.circle','#30a14e')}")
-    p(f"--Per day (last 7) | size=11 {DIM}")
-    for d,c in last7:
-        tag=" ←today" if d==today else ""
-        p(f"--{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM} {TXT}")
-    p(f"--Today ${win['today']:,.0f}  ·  week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
-    p(f"--All-time ${win['all']:,.0f}  (since {since}) | {MONO} {TXT}")
-    p(f"--By model | size=11 {DIM}")
-    for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
-        p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
-    p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
-    p(f"Links | {SM} {TXT} {sftint('link','#0a84ff')}")
-    p(f"--claude-meter on GitHub | href={REPO_URL} {sftint('chevron.left.forwardslash.chevron.right','#af52de')}")
-    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false {sftint('folder','#0a84ff')}")
-    p(f"--Anthropic status | href=https://status.anthropic.com {sftint('antenna.radiowaves.left.and.right','#30a14e')}")
+        p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
+        if heavy:
+            p(f"click a row to reopen that session in a terminal | size=10 {DIM}")
+            for s in heavy:
+                lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
+                sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
+                ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
+                p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
+                  f"param1=--resume param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
+        else:
+            p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
+    if SH["insight"]:
+        ins=insight(tw,by_model)
+        if ins:
+            p("---")
+            p(f"{ins.replace('💡 ','')} | size=11 {TXT} {sftint('lightbulb.fill','#e6a700')}")
+    if SH["cost"]:
+        p("---")
+        p(f"Cost & history (local $ proxy) | {SM} {TXT} {sftint('dollarsign.circle','#30a14e')}")
+        p(f"--Per day (last 7) | size=11 {DIM}")
+        for d,c in last7:
+            tag=" ←today" if d==today else ""
+            p(f"--{d.strftime('%a')} ▕{hbar(c/dmax)}▏ ${c:>4.0f}{tag} | {SM} {TXT}")
+        p(f"--Today ${win['today']:,.0f}  ·  week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
+        p(f"--All-time ${win['all']:,.0f}  (since {since}) | {MONO} {TXT}")
+        p(f"--By model | size=11 {DIM}")
+        for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
+            p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
+        p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
+    if SH["links"]:
+        p("---")
+        p(f"Links | {SM} {TXT} {sftint('link','#0a84ff')}")
+        p(f"--claude-meter on GitHub | href={REPO_URL} {sftint('chevron.left.forwardslash.chevron.right','#af52de')}")
+        p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false {sftint('folder','#0a84ff')}")
+        p(f"--Anthropic status | href=https://status.anthropic.com {sftint('antenna.radiowaves.left.and.right','#30a14e')}")
+
+    out=[]                                  # collapse duplicate / leading / trailing separators
+    for ln in OUT:
+        if ln=="---" and (not out or out[-1]=="---"): continue
+        out.append(ln)
+    while out and out[-1]=="---": out.pop()
+    print("\n".join(out))
 
 if __name__=="__main__":
     main()
