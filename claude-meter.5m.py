@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""claude-meter — Claude Code usage in your menu bar.
+"""claude-meter — Claude Code usage in your menu bar (Claude Pro/Max).
 
 The two % gauges (5-hour + weekly) come straight from Anthropic's
 `anthropic-ratelimit-unified-*` response headers, so they are ACCOUNT-WIDE —
@@ -516,4 +516,5 @@ if __name__=="__main__":
     except Exception as e:                       # a plugin must never show a broken menu
         print("◌ | color=#8e8e93")
         print("---")
-        print(f"claude-meter error: {str(e)[:80]} | size=11 color=#8e8e93")
+        print(f"claude-meter hiccup ({type(e).__name__}) · ↻ retry | size=11 color=#8e8e93 "
+              f"bash={SELF} param1=--force terminal=false refresh=true")   # type only — no message/paths

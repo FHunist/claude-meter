@@ -4,7 +4,7 @@
 ![license: MIT](https://img.shields.io/badge/license-MIT-green)
 ![dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
 
-A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall.
+A tiny macOS menu-bar gauge for your **Claude Code usage** on a **Claude Pro/Max** plan — the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall. It reads your Claude Code **subscription login** (OAuth), not an API key.
 
 <p align="center">
   <img src="docs/screenshot.png" width="320" alt="claude-meter dropdown — 5h + weekly gauges, forecasts, burn rate, active sessions">
@@ -54,7 +54,7 @@ Claude Code shows your usage with `/usage`, but only when you go looking. claude
 
 - **macOS** (the menu-bar host, SwiftBar, is macOS — a Linux port is on the roadmap)
 - [**Homebrew**](https://brew.sh)
-- **Claude Code**, installed and logged in (so the OAuth token is in your Keychain)
+- **Claude Code** on a **Pro or Max** plan, signed in (OAuth) — claude-meter reads that subscription token, and the 5h / weekly figures it shows are your subscription's limits. *(Claude Code used with an API key doesn't have these unified rate limits, so the gauges won't apply.)*
 - **Python 3** (system / conda / brew — no third-party packages)
 - [**SwiftBar**](https://github.com/swiftbar/SwiftBar) — the installer adds it for you
 
@@ -106,8 +106,9 @@ Removes the plugin and the `~/.config/claude-meter` cache. SwiftBar is left in p
 
 ## Privacy & security
 
-- Your OAuth token is read from the Keychain at refresh time and used **only** as the bearer for a single request to `api.anthropic.com`. It's never written to disk, logged, or sent anywhere else.
-- The only thing cached locally is the parsed utilization numbers + alert state under `~/.config/claude-meter/`.
+- Your OAuth token is read from the Keychain at refresh time and used **only** as the bearer for a single request to `api.anthropic.com`. It's passed to `curl` via **stdin**, so it never appears in `ps`/argv, and it's never written to disk, logged, copied, or sent anywhere else.
+- **No telemetry / phone-home.** The only network request is that one 1-token ping; the GitHub and status links only open if you click them.
+- The only thing cached locally is **numeric** rate-limit data + alert state under `~/.config/claude-meter/` — no token, no paths, no session content. Your session titles, directories, and cost figures never leave your machine (menu / clipboard / terminal only).
 - It's one dependency-free Python file — read it before you run it.
 
 ## Roadmap
