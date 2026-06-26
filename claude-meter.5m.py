@@ -11,7 +11,7 @@ Cross-platform core with thin per-OS shims (token / notify / clipboard).
 macOS today, via SwiftBar; the shims carry Linux branches for the
 waybar/Argos port. No third-party Python packages.
 """
-import json, glob, os, sys, time, shlex, subprocess, getpass, platform
+import json, glob, os, sys, time, shlex, base64, subprocess, getpass, platform
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
@@ -165,6 +165,12 @@ def sanitize(s):  # SwiftBar treats | and newlines as control chars
     return (s or "").replace("|","/").replace("\n"," ").strip()
 def pq(v):        # quote a SwiftBar param value only if it contains spaces
     return f'"{v}"' if (" " in v) else v
+def sftint(name,hexcolor):
+    """Full SF Symbol spec: image + color. sfcolor alone doesn't tint in older
+    SwiftBar, so also emit a Palette sfconfig (base64 JSON), which does."""
+    cfg=base64.b64encode(json.dumps({"renderingMode":"Palette","colors":[hexcolor],
+        "scale":"medium","weight":"semibold"}).encode()).decode()
+    return f"sfimage={name} sfcolor={hexcolor} sfconfig={cfg}"
 
 def project(util,reset,L):
     """Projected exhaustion epoch if on pace to hit the cap before reset, else None."""
@@ -186,6 +192,18 @@ def proj_color(proj,reset,L):
     if frac>0.33: return "#d70015,#ff453a"   # red   — long lockout ahead
     if frac>0.10: return "#b25000,#ff9f0a"   # amber — moderate
     return "#9a7d0a,#ffd60a"                  # yellow — marginal overshoot
+
+def forecast(util,reset,L):
+    """Projected end-of-window state at the current average rate. (text,color) or None."""
+    now=time.time()
+    if util is None or not reset: return None
+    elapsed=L-(reset-now)
+    if elapsed<=300 or util<=0.001: return None
+    rate=util/elapsed; end=rate*L
+    if end>=1.0:
+        proj=now+(1.0-util)/rate
+        return (f"↗ cap ~{when(proj)} · ~{dur(reset-proj)} locked", proj_color(proj,reset,L))
+    return (f"≈ ~{end*100:.0f}% by reset", "#6e6e73,#aeaeb2")
 
 def load_config():
     cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h"}
@@ -327,13 +345,10 @@ def main():
     trend_data=record_trend(real)
     check_alerts(real if src in ("live","cached","stale") else None, cfg["alert_levels"])
 
-    proj5=proj7=None
     if real and real.get("u5") is not None:
         b_pct=real["u5"]*100; w_pct=(real.get("u7") or 0)*100
         b_reset=f"resets {when(real['r5'])} · in {cd(real['r5'])}" if real.get("r5") else ""
         w_reset=f"resets {when(real['r7'])} · in {cd(real['r7'])}" if real.get("r7") else ""
-        proj5=project(real.get("u5"),real.get("r5"),L5)
-        proj7=project(real.get("u7"),real.get("r7"),L7)
         srcline=(f"● live — Anthropic headers · updated {ago(real['ts'])}" if src in ("live","cached")
                  else f"◐ stale — last good {ago(real['ts'])}")
         accountwide=True
@@ -372,24 +387,22 @@ def main():
         p(f"{sb[0]} | size=13 color={sb[1]}")
         p("---")
     # two windows — one bold bar line + one small meta line each
-    for label,pct,resettext,proj,resetep,L,is_week in (
-            ("5h  ",b_pct,b_reset,proj5,(real or {}).get("r5"),L5,False),
-            ("week",w_pct,w_reset,proj7,(real or {}).get("r7"),L7,True)):
+    for label,pct,resettext,util,reset,L in (
+            ("5h  ",b_pct,b_reset,(real or {}).get("u5"),(real or {}).get("r5"),L5),
+            ("week",w_pct,w_reset,(real or {}).get("u7"),(real or {}).get("r7"),L7)):
         p(f"{label} {pbar(pct)} {pct:>3.0f}% | {BIG} color={clr(pct)}")
-        if proj and resetep:
-            p(f"      {resettext}  ·  ↗ cap ~{when(proj)} · ~{dur(resetep-proj)} locked"
-              f" | font=Menlo size=11 color={proj_color(proj,resetep,L)}")
-        elif is_week and accountwide:
-            p(f"      {resettext}  ·  clears before reset ✓ | font=Menlo size=11 {DIM}")
+        fc=forecast(util,reset,L)
+        if fc:
+            p(f"      {resettext}  ·  {fc[0]} | font=Menlo size=11 color={fc[1]}")
         else:
             p(f"      {resettext} | font=Menlo size=11 {DIM}")
     spark=sparkline(trend_data) if accountwide else None
     if spark:
-        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} sfimage=chart.line.uptrend.xyaxis sfcolor=#0071e3,#0a84ff")
+        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
     p("---")
     p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"Active sessions · this machine · click to resume | size=11 {DIM} sfimage=bolt.fill sfcolor=#c25e00,#ff9f0a")
+    p(f"Active sessions · this machine · click to resume | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
     if heavy:
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
@@ -402,10 +415,10 @@ def main():
     ins=insight(tw,by_model)
     if ins:
         p("---")
-        p(f"{ins.replace('💡 ','')} | size=11 {TXT} sfimage=lightbulb.fill sfcolor=#a8860b,#ffd60a")
+        p(f"{ins.replace('💡 ','')} | size=11 {TXT} {sftint('lightbulb.fill','#e6a700')}")
     p("---")
     # collapsed into a submenu so the menu stays short on small screens
-    p(f"Cost & history (local $ proxy) | {SM} {TXT} sfimage=dollarsign.circle sfcolor=#248a3d,#30d158")
+    p(f"Cost & history (local $ proxy) | {SM} {TXT} {sftint('dollarsign.circle','#30a14e')}")
     p(f"--Per day (last 7) | size=11 {DIM}")
     for d,c in last7:
         tag=" ←today" if d==today else ""
@@ -416,10 +429,10 @@ def main():
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
         p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
     p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
-    p(f"Links | {SM} {TXT} sfimage=link sfcolor=#0071e3,#0a84ff")
-    p(f"--claude-meter on GitHub | href={REPO_URL} sfimage=chevron.left.forwardslash.chevron.right sfcolor=#8944ab,#bf5af2")
-    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false sfimage=folder sfcolor=#0071e3,#0a84ff")
-    p(f"--Anthropic status | href=https://status.anthropic.com sfimage=antenna.radiowaves.left.and.right sfcolor=#30a14e,#30d158")
+    p(f"Links | {SM} {TXT} {sftint('link','#0a84ff')}")
+    p(f"--claude-meter on GitHub | href={REPO_URL} {sftint('chevron.left.forwardslash.chevron.right','#af52de')}")
+    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false {sftint('folder','#0a84ff')}")
+    p(f"--Anthropic status | href=https://status.anthropic.com {sftint('antenna.radiowaves.left.and.right','#30a14e')}")
 
 if __name__=="__main__":
     main()
