@@ -228,7 +228,7 @@ def forecast(util,reset,L):
 
 def load_config():
     cfg={"alert_levels":list(ALERT_LEVELS),"active_min":ACTIVE_MIN,"dual_title":False,"title_window":"5h","terminal":"Terminal",
-         "show":{"forecast":True,"trend":True,"sessions":True,"insight":True,"cost":True,"links":True}}
+         "show":{"forecast":True,"burn":True,"trend":True,"sessions":True,"insight":True,"cost":True,"links":True}}
     try:
         u=json.load(open(CONFIG))
         if isinstance(u,dict):
@@ -437,15 +437,16 @@ def main():
         fc=forecast(util,reset,L) if SH["forecast"] else None
         if fc:
             p(f"  {fc[0]} | font=Menlo size=11 color={fc[1]}")
+    br=burn_rate(trend_data)                                  # recent slope (best when active)
+    if (br is None or br<0.5) and real and real.get("r5"):        # idle/sparse → window-average rate
+        el=L5-(real["r5"]-time.time())
+        if el>300: br=real["u5"]/max(el,WARMUP)*3600*100
+    if SH["burn"] and br and br>=1:
+        p(f"burn ~{br:.0f}%/hr | {SM} {TXT} {sftint('flame.fill','#ff6a00')}")
     if SH["trend"]:
         spark=sparkline(trend_data,width=16) if accountwide else None
         if spark:
-            br=burn_rate(trend_data)                          # recent slope (best when active)
-            if (br is None or br<0.5) and real and real.get("r5"):   # idle/sparse → window-average
-                el=L5-(real["r5"]-time.time())
-                if el>300: br=real["u5"]/max(el,WARMUP)*3600*100
-            brtxt=f" · ↑{br:.0f}%/hr" if (br and br>=1) else ""
-            p(f"5h 24h ▕{spark}▏ {b_pct:.0f}%{brtxt} | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
+            p(f"5h 24h ▕{spark}▏ {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
     p("---")
     p(f"{srcline} · ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     if SH["sessions"]:
