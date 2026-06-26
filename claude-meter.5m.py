@@ -39,11 +39,12 @@ def rate(m):
     m=(m or "").lower()
     return PRICES["haiku"] if "haiku" in m else PRICES["sonnet"] if "sonnet" in m else PRICES["opus"]
 def cost(u,model):
-    r=rate(model); cc=u.get("cache_creation") or {}
-    cw1=cc.get("ephemeral_1h_input_tokens",0)
-    cw5=cc.get("ephemeral_5m_input_tokens",u.get("cache_creation_input_tokens",0)-cw1)
-    return (u.get("input_tokens",0)*r["in"]+u.get("output_tokens",0)*r["out"]
-            +u.get("cache_read_input_tokens",0)*r["cr"]+max(cw5,0)*r["cw5"]+cw1*r["cw1"])/1_000_000
+    r=rate(model); cc=u.get("cache_creation"); cc=cc if isinstance(cc,dict) else {}
+    cw1=cc.get("ephemeral_1h_input_tokens") or 0
+    cw5=cc.get("ephemeral_5m_input_tokens")
+    if cw5 is None: cw5=(u.get("cache_creation_input_tokens") or 0)-cw1
+    return ((u.get("input_tokens") or 0)*r["in"]+(u.get("output_tokens") or 0)*r["out"]
+            +(u.get("cache_read_input_tokens") or 0)*r["cr"]+max(cw5 or 0,0)*r["cw5"]+cw1*r["cw1"])/1_000_000
 
 # ---- platform shims ------------------------------------------------------
 def get_token():
@@ -67,12 +68,14 @@ def get_token():
         return None
 
 def notify(title,msg):
+    def esc(t): return str(t).replace("\\","\\\\").replace('"','\\"')
     try:
         if IS_MAC:
-            subprocess.run(["osascript","-e",f'display notification "{msg}" with title "{title}"'],
-                           timeout=6,capture_output=True)
+            subprocess.run(["osascript","-e",
+                f'display notification "{esc(msg)}" with title "{esc(title)}"'],
+                timeout=6,capture_output=True)
         else:
-            subprocess.run(["notify-send",title,msg],timeout=6,capture_output=True)
+            subprocess.run(["notify-send",str(title),str(msg)],timeout=6,capture_output=True)
     except Exception:
         pass
 
@@ -121,12 +124,12 @@ def fetch_real():
         body=json.dumps({"model":"claude-haiku-4-5-20251001","max_tokens":1,
             "system":"You are Claude Code, Anthropic's official CLI for Claude.",
             "messages":[{"role":"user","content":"hi"}]})
-        p=subprocess.run(["curl","-sS","-D","-","-o","/dev/null",
+        p=subprocess.run(["curl","-sS","-D","-","-o","/dev/null","-K","-",
             "https://api.anthropic.com/v1/messages",
-            "-H",f"authorization: Bearer {tok}",
             "-H","anthropic-beta: oauth-2025-04-20",
             "-H","anthropic-version: 2023-06-01",
             "-H","content-type: application/json","--data",body],
+            input=f'header = "authorization: Bearer {tok}"\n',   # token via stdin config, not argv (ps-safe)
             capture_output=True,text=True,timeout=12)
         h={}
         for line in p.stdout.splitlines():
@@ -149,7 +152,9 @@ def fetch_real():
 
 def get_real(force=False):
     cache=None
-    try: cache=json.load(open(CACHE))
+    try:
+        cache=json.load(open(CACHE))
+        if not isinstance(cache,dict): cache=None
     except Exception: pass
     if cache and not force and time.time()-cache.get("ts",0) < TTL:
         return cache,"cached"
@@ -216,10 +221,11 @@ def forecast(util,reset,L):
     """Projected end-of-window state at the current average rate. (text,color) or None."""
     now=time.time()
     if util is None or not reset: return None
-    elapsed=L-(reset-now)
+    remaining=reset-now
+    if remaining<=0: return None              # window already reset / stale headers
+    elapsed=L-remaining
     if elapsed<=300 or util<=0.001: return None
     rate=util/max(elapsed,WARMUP)            # warmup floor damps the early-window spike
-    remaining=reset-now
     end=util+rate*remaining                   # projected utilization at reset
     if end>=1.0:
         proj=now+(1.0-util)/rate
@@ -234,9 +240,13 @@ def load_config():
         if isinstance(u,dict):
             for k in cfg:
                 if k not in u: continue
-                if k=="show" and isinstance(u[k],dict): cfg["show"].update(u[k])  # merge partial
-                else: cfg[k]=u[k]
+                if k=="show":
+                    if isinstance(u[k],dict): cfg["show"].update(u[k])  # merge partial
+                elif type(u[k])==type(cfg[k]): cfg[k]=u[k]              # ignore wrong-typed values
     except Exception: pass
+    al=cfg["alert_levels"]
+    if not (isinstance(al,list) and al and all(isinstance(x,(int,float)) for x in al)):
+        cfg["alert_levels"]=list(ALERT_LEVELS)
     return cfg
 
 def status_banner(status):
@@ -257,7 +267,10 @@ def status_dot(status):
 
 def record_trend(real):
     """Append the account-wide u5/u7 sample (deduped by ts); keep ~24h. Returns the series."""
-    try: data=json.load(open(TREND))
+    try:
+        data=json.load(open(TREND))
+        if not isinstance(data,list): data=[]
+        data=[d for d in data if isinstance(d,list) and len(d)==3]
     except Exception: data=[]
     if real and real.get("u5") is not None:
         ts=int(real["ts"])
@@ -304,7 +317,9 @@ def insight(tw,by_model):
 # ---- alerts (background desktop notifications) ----------------------------
 def check_alerts(real, levels):
     if not real: return
-    try: st=json.load(open(ALERTS))
+    try:
+        st=json.load(open(ALERTS))
+        if not isinstance(st,dict): st={}
     except Exception: st={}
     changed=False
     for key,util,reset,label in (("5h",real.get("u5"),real.get("r5"),"5-hour"),
@@ -347,15 +362,17 @@ def main():
             for line in f:
                 try: o=json.loads(line)
                 except: continue
+                if not isinstance(o,dict): continue
                 if s["cwd"] is None and o.get("cwd"): s["cwd"]=o["cwd"]
                 if o.get("aiTitle"): s["title"]=o["aiTitle"]
-                msg=o.get("message") or {}
+                msg=o.get("message")
+                if not isinstance(msg,dict): continue
                 if msg.get("role")=="assistant" and isinstance(msg.get("content"),list):
                     for it in msg["content"]:
                         if isinstance(it,dict) and it.get("type")=="tool_use" and it.get("name")=="Task":
                             s["subagents"]+=1
                 u=msg.get("usage"); model=msg.get("model")
-                if not u or model=="<synthetic>": continue
+                if not isinstance(u,dict) or model=="<synthetic>": continue
                 try: t=datetime.fromisoformat(o["timestamp"].replace("Z","+00:00")).astimezone()
                 except: continue
                 c=cost(u,model); events.append((t,c)); by_model[model]+=c
@@ -365,10 +382,10 @@ def main():
                 if t>=d30: win["30d"]+=c
                 if t>=wstart:
                     win["week"]+=c
-                    tw["in"]+=u.get("input_tokens",0); tw["out"]+=u.get("output_tokens",0)
-                    tw["cr"]+=u.get("cache_read_input_tokens",0); tw["cw"]+=u.get("cache_creation_input_tokens",0)
+                    tw["in"]+=u.get("input_tokens") or 0; tw["out"]+=u.get("output_tokens") or 0
+                    tw["cr"]+=u.get("cache_read_input_tokens") or 0; tw["cw"]+=u.get("cache_creation_input_tokens") or 0
                 s["cost"]+=c
-                ctx=u.get("input_tokens",0)+u.get("cache_read_input_tokens",0)
+                ctx=(u.get("input_tokens") or 0)+(u.get("cache_read_input_tokens") or 0)
                 if ctx>s["ctx"]: s["ctx"]=ctx
                 s["last"]=t if s["last"] is None or t>s["last"] else s["last"]
 
@@ -458,7 +475,7 @@ def main():
                 lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:18]
                 ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
                 p(f"{lbl}  ${s['cost']:.0f} · {ctx} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
-                  f"param1=--resume param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
+                  f"param1=--resume param2={pq(s['sid'])} param3={pq(s['cwd'] or '')} terminal=false")
         else:
             p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
     if SH["insight"]:
@@ -494,4 +511,9 @@ def main():
     print("\n".join(out))
 
 if __name__=="__main__":
-    main()
+    try:
+        main()
+    except Exception as e:                       # a plugin must never show a broken menu
+        print("◌ | color=#8e8e93")
+        print("---")
+        print(f"claude-meter error: {str(e)[:80]} | size=11 color=#8e8e93")
