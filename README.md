@@ -6,14 +6,15 @@ A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour
   ◔ 45%        ← menu bar: a disc that fills with your 5h load, color-coded
   ──────────────────────────────────────────────────────────
   5h   ▕██████▎░░░░░░░▏  45%
-       resets Fri 1:50 PM · 3h01m · ↗ on pace to cap ~1:13 PM
+       resets Fri 1:50 PM · 3h01m · at this rate → ~89% at reset
   week ▕██████▉░░░░░░░▏  49%
-       resets Tue 11:00 PM · 4d12h · clears before reset ✓
+       resets Tue 11:00 PM · 4d12h · at this rate → 100% by Mon 12:30 AM (~1d22h locked out)
   📈 5h · 24h  ▕▁▂▃▅▆█▇▅▃▂▁·····▂▄▆▏  now 45%
   ──────────────────────────────────────────────────────────
   ● live — Anthropic headers · 2m ago · ↻ refresh
   ──────────────────────────────────────────────────────────
-  ⚡ Active sessions · this machine · click to resume
+  ⚡ Active sessions · this machine
+  click a row to copy its 'claude --resume' command (paste in a terminal)
   Set up mosh via ZeroTier   $224.95 · ctx 294k · 2 subagents · 4m ago
   ──────────────────────────────────────────────────────────
   💡 95% of input is cached context — /compact more often

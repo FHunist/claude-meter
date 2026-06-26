@@ -202,8 +202,9 @@ def forecast(util,reset,L):
     rate=util/elapsed; end=rate*L
     if end>=1.0:
         proj=now+(1.0-util)/rate
-        return (f"↗ cap ~{when(proj)} · ~{dur(reset-proj)} locked", proj_color(proj,reset,L))
-    return (f"≈ ~{end*100:.0f}% by reset", "#6e6e73,#aeaeb2")
+        return (f"at this rate → 100% by {when(proj)} (~{dur(reset-proj)} locked out)",
+                proj_color(proj,reset,L))
+    return (f"at this rate → ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
     cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h"}
@@ -402,8 +403,9 @@ def main():
     p("---")
     p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"Active sessions · this machine · click to resume | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
+    p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
     if heavy:
+        p(f"click a row to copy its 'claude --resume' command (paste in a terminal) | size=10 {DIM}")
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
             sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
