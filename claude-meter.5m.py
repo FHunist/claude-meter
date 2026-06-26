@@ -86,6 +86,32 @@ def clipboard(text):
         pass
     return False
 
+def open_session(sid,cwd,cfg):
+    """Open the session in a terminal and run `claude --resume`. Falls back to copying."""
+    if not sid: return
+    cmd=(f"cd {shlex.quote(cwd)} && " if cwd else "")+f"claude --resume {shlex.quote(sid)}"
+    term=(cfg.get("terminal") or "Terminal")
+    esc=cmd.replace("\\","\\\\").replace('"','\\"')   # escape for an AppleScript string
+    try:
+        if term=="iTerm":
+            script=('tell application "iTerm"\nactivate\n'
+                    'set w to (create window with default profile)\n'
+                    'tell current session of w to write text "'+esc+'"\nend tell')
+            osa=["osascript","-e",script]
+        elif term=="Warp":                            # no `do script` — simulate keystrokes
+            script=('tell application "Warp" to activate\ndelay 0.4\n'
+                    'tell application "System Events"\n'
+                    'keystroke "n" using command down\ndelay 0.5\n'
+                    'keystroke "'+esc+'"\nkey code 36\nend tell')
+            osa=["osascript","-e",script]
+        else:                                          # Terminal.app (default, reliable)
+            osa=["osascript","-e",'tell application "Terminal" to do script "'+esc+'"',
+                 "-e",'tell application "Terminal" to activate']
+        r=subprocess.run(osa,timeout=15,capture_output=True,text=True)
+        if r.returncode!=0: raise RuntimeError(r.stderr or "osascript failed")
+    except Exception:
+        clipboard(cmd); notify("claude-meter","Couldn't open terminal — resume command copied instead")
+
 # ---- live rate-limit headers ---------------------------------------------
 def fetch_real():
     tok=get_token()
@@ -207,7 +233,7 @@ def forecast(util,reset,L):
     return (f"at this rate → ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
-    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h"}
+    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h","terminal":"Terminal"}
     try:
         u=json.load(open(CONFIG))
         if isinstance(u,dict):
@@ -283,14 +309,11 @@ def check_alerts(real, levels):
 # ---- main ----------------------------------------------------------------
 def main():
     args=sys.argv[1:]
-    if args and args[0]=="--copy":                                   # row-click action
-        sid=args[1] if len(args)>1 else ""
-        cwd=args[2] if len(args)>2 else ""
-        cmd=(f"cd {shlex.quote(cwd)} && " if cwd else "")+f"claude --resume {sid}"
-        clipboard(cmd); notify("claude-meter","Resume command copied to clipboard")
+    cfg=load_config()
+    if args and args[0]=="--resume":                                 # row-click action
+        open_session(args[1] if len(args)>1 else "", args[2] if len(args)>2 else "", cfg)
         return
     force="--force" in args
-    cfg=load_config()
 
     now=datetime.now(timezone.utc).astimezone()
     start_today=now.replace(hour=0,minute=0,second=0,microsecond=0)
@@ -405,13 +428,13 @@ def main():
     p("---")
     p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
     if heavy:
-        p(f"click a row to copy its 'claude --resume' command (paste in a terminal) | size=10 {DIM}")
+        p(f"click a row to reopen that session in a terminal | size=10 {DIM}")
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
             sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
             ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
             p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
-              f"param1=--copy param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
+              f"param1=--resume param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
     else:
         p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
     ins=insight(tw,by_model)
