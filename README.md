@@ -6,21 +6,23 @@ A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour
   ◔ 45%        ← menu bar: a disc that fills with your 5h load, color-coded
   ──────────────────────────────────────────────────────────
   5h   ▕██████▎░░░░░░░▏  45%
-       resets Fri 1:50 PM · 3h01m · → ~89% at reset
+    resets Fri 1:50 PM · in 3h01m
+    → ~89% at reset
   week ▕██████▉░░░░░░░▏  49%
-       resets Tue 11:00 PM · 4d12h · → 100% by Mon 12:30 AM (~1d22h locked out)
-  📈 5h · 24h  ▕▁▂▃▅▆█▇▅▃▂▁·····▂▄▆▏  now 45%
-  ──────────────────────────────────────────────────────────
-  ● live — Anthropic headers · 2m ago · ↻ refresh
-  ──────────────────────────────────────────────────────────
+    resets Tue 11 PM · in 4d12h
+    → caps Mon 12:30 AM · ~1d22h locked
+  5h 24h ▕▁▂▃▅▆█▇▅▂▄▆▏ 45%
+  ──────────────────────────────────────────────
+  ● live · 2m ago · ↻ refresh
+  ──────────────────────────────────────────────
   ⚡ Active sessions · this machine
-  click a row to reopen that session in a terminal
-  Set up mosh via ZeroTier   $224.95 · ctx 294k · 2 subagents · 4m ago
-  ──────────────────────────────────────────────────────────
-  💡 95% of input is cached context — /compact more often
-  ──────────────────────────────────────────────────────────
-  💵 Cost & history (local $ proxy)   ▸   (per-day · totals · by-model)
-  🔗 Links                            ▸   (repo · ~/.claude · status)
+  click a row → reopen in a terminal
+  Set up mosh via ZeroTier  $225 · 294k · 4m ago
+  ──────────────────────────────────────────────
+  💡 95% cached context — /compact more often
+  ──────────────────────────────────────────────
+  💵 Cost & history (local $ proxy)   ▸
+  🔗 Links                            ▸
 ```
 
 The menu-bar glyph is itself a gauge that fills with your 5‑hour load…

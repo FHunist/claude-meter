@@ -179,7 +179,7 @@ def cd(epoch):
     return f"{m//60}h{m%60:02d}m" if m<1440 else f"{m//1440}d {(m%1440)//60}h"
 def when(epoch):
     if not epoch: return ""
-    return datetime.fromtimestamp(epoch).astimezone().strftime("%a %I:%M %p").replace(" 0"," ")
+    return datetime.fromtimestamp(epoch).astimezone().strftime("%a %I:%M %p").replace(" 0"," ").replace(":00","")
 def ago(ts):
     a=time.time()-ts
     return "just now" if a<60 else (f"{int(a//60)}m ago" if a<3600 else f"{int(a//3600)}h ago")
@@ -228,8 +228,7 @@ def forecast(util,reset,L):
     rate=util/elapsed; end=rate*L
     if end>=1.0:
         proj=now+(1.0-util)/rate
-        return (f"→ 100% by {when(proj)} (~{dur(reset-proj)} locked out)",
-                proj_color(proj,reset,L))
+        return (f"→ caps {when(proj)} · ~{dur(reset-proj)} locked", proj_color(proj,reset,L))
     return (f"→ ~{end*100:.0f}% at reset", "#6e6e73,#aeaeb2")
 
 def load_config():
@@ -285,10 +284,10 @@ def insight(tw,by_model):
     cr=tw["cr"]/max(1,total)
     opus=sum(v for m,v in by_model.items() if "opus" in m.lower()); tot=sum(by_model.values()) or 1.0
     if cr>0.85:
-        return f"💡 {round(cr*100)}% of input is cached context — /compact or /clear between tasks to trim it."
+        return f"💡 {round(cr*100)}% cached context — /compact more often"
     if opus/tot>0.9:
-        return "💡 Nearly all spend is Opus — try Sonnet for routine edits to stretch your limits."
-    return f"💡 This week: cache-reads {round(cr*100)}% of input · Opus {round(opus/tot*100)}% of spend."
+        return "💡 Mostly Opus — try Sonnet for routine work"
+    return f"💡 cache {round(cr*100)}% · Opus {round(opus/tot*100)}% of spend"
 
 # ---- alerts (background desktop notifications) ----------------------------
 def check_alerts(real, levels):
@@ -376,8 +375,8 @@ def main():
         b_pct=real["u5"]*100; w_pct=(real.get("u7") or 0)*100
         b_reset=f"resets {when(real['r5'])} · in {cd(real['r5'])}" if real.get("r5") else ""
         w_reset=f"resets {when(real['r7'])} · in {cd(real['r7'])}" if real.get("r7") else ""
-        srcline=(f"● live — Anthropic headers · updated {ago(real['ts'])}" if src in ("live","cached")
-                 else f"◐ stale — last good {ago(real['ts'])}")
+        srcline=(f"● live · {ago(real['ts'])}" if src in ("live","cached")
+                 else f"◐ stale · {ago(real['ts'])}")
         accountwide=True
     else:
         blimit=override("claude_limit.txt") or max((b["cost"] for b in blocks),default=0.0) or 1.0
@@ -385,7 +384,7 @@ def main():
         b_pct=min(bcost/blimit*100,999); w_pct=min(win["week"]/wlimit*100,999)
         b_reset=("resets in "+cd((active["start"]+B).timestamp())) if active else "idle"
         w_reset="resets "+when((wstart+timedelta(days=7)).timestamp())
-        srcline="○ proxy (no API — token expired/offline; local estimate)"
+        srcline="○ proxy · API offline"
         accountwide=False
 
     active_cut=now-timedelta(minutes=cfg["active_min"])
@@ -418,27 +417,25 @@ def main():
             ("5h  ",b_pct,b_reset,(real or {}).get("u5"),(real or {}).get("r5"),L5),
             ("week",w_pct,w_reset,(real or {}).get("u7"),(real or {}).get("r7"),L7)):
         p(f"{label} {pbar(pct)} {pct:>3.0f}% | {BIG} color={clr(pct)}")
+        p(f"  {resettext} | font=Menlo size=11 {DIM}")
         fc=forecast(util,reset,L) if SH["forecast"] else None
         if fc:
-            p(f"      {resettext}  ·  {fc[0]} | font=Menlo size=11 color={fc[1]}")
-        else:
-            p(f"      {resettext} | font=Menlo size=11 {DIM}")
+            p(f"  {fc[0]} | font=Menlo size=11 color={fc[1]}")
     if SH["trend"]:
-        spark=sparkline(trend_data) if accountwide else None
+        spark=sparkline(trend_data,width=16) if accountwide else None
         if spark:
-            p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
+            p(f"5h 24h ▕{spark}▏ {b_pct:.0f}% | {SM} {TXT} {sftint('chart.line.uptrend.xyaxis','#0a84ff')}")
     p("---")
-    p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
+    p(f"{srcline} · ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     if SH["sessions"]:
         p("---")
         p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
         if heavy:
-            p(f"click a row to reopen that session in a terminal | size=10 {DIM}")
+            p(f"click a row → reopen in a terminal | size=10 {DIM}")
             for s in heavy:
-                lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
-                sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
+                lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:18]
                 ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
-                p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
+                p(f"{lbl}  ${s['cost']:.0f} · {ctx} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
                   f"param1=--resume param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
         else:
             p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
