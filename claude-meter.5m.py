@@ -174,6 +174,19 @@ def project(util,reset,L):
     proj=now+elapsed*(1.0-util)/util
     return proj if proj<reset else None
 
+def dur(secs):
+    m=int(max(secs,0)//60)
+    if m<60: return f"{m}m"
+    if m<1440: return f"{m//60}h{m%60:02d}m"
+    return f"{m//1440}d{(m%1440)//60}h"
+
+def proj_color(proj,reset,L):
+    """Color the projection by how much of the window you'd be locked out for."""
+    frac=(reset-proj)/L
+    if frac>0.33: return "#d70015,#ff453a"   # red   — long lockout ahead
+    if frac>0.10: return "#b25000,#ff9f0a"   # amber — moderate
+    return "#9a7d0a,#ffd60a"                  # yellow — marginal overshoot
+
 def load_config():
     cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h"}
     try:
@@ -345,7 +358,7 @@ def main():
     MONO="font=Menlo size=13"; BIG="font=Menlo size=15"; SM="font=Menlo size=12"
     TXT="color=#1d1d1f,#f5f5f7"   # primary text — high contrast in light & dark
     DIM="color=#6e6e73,#aeaeb2"   # secondary captions — readable, not faint
-    SFC="sfcolor=#1d1d1f,#f5f5f7" # SF Symbols ignore color= — must tint via sfcolor
+    # SF Symbols ignore color= — each row tints its icon via its own sfcolor=light,dark
     p=print
 
     if cfg["dual_title"]:
@@ -359,22 +372,24 @@ def main():
         p(f"{sb[0]} | size=13 color={sb[1]}")
         p("---")
     # two windows — one bold bar line + one small meta line each
-    for label,pct,reset,proj,is_week in (("5h  ",b_pct,b_reset,proj5,False),
-                                         ("week",w_pct,w_reset,proj7,True)):
+    for label,pct,resettext,proj,resetep,L,is_week in (
+            ("5h  ",b_pct,b_reset,proj5,(real or {}).get("r5"),L5,False),
+            ("week",w_pct,w_reset,proj7,(real or {}).get("r7"),L7,True)):
         p(f"{label} {pbar(pct)} {pct:>3.0f}% | {BIG} color={clr(pct)}")
-        if proj:
-            p(f"      {reset}  ·  ↗ on pace to cap ~{when(proj)} | font=Menlo size=11 color=#ff9f0a")
+        if proj and resetep:
+            p(f"      {resettext}  ·  ↗ cap ~{when(proj)} · ~{dur(resetep-proj)} locked"
+              f" | font=Menlo size=11 color={proj_color(proj,resetep,L)}")
         elif is_week and accountwide:
-            p(f"      {reset}  ·  clears before reset ✓ | font=Menlo size=11 {DIM}")
+            p(f"      {resettext}  ·  clears before reset ✓ | font=Menlo size=11 {DIM}")
         else:
-            p(f"      {reset} | font=Menlo size=11 {DIM}")
+            p(f"      {resettext} | font=Menlo size=11 {DIM}")
     spark=sparkline(trend_data) if accountwide else None
     if spark:
-        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} sfimage=chart.line.uptrend.xyaxis {SFC}")
+        p(f"5h · 24h  ▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT} sfimage=chart.line.uptrend.xyaxis sfcolor=#0071e3,#0a84ff")
     p("---")
     p(f"{srcline}  ·  ↻ refresh | {SM} {TXT} bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"Active sessions · this machine · click to resume | size=11 {DIM} sfimage=bolt.fill {SFC}")
+    p(f"Active sessions · this machine · click to resume | size=11 {DIM} sfimage=bolt.fill sfcolor=#c25e00,#ff9f0a")
     if heavy:
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
@@ -387,10 +402,10 @@ def main():
     ins=insight(tw,by_model)
     if ins:
         p("---")
-        p(f"{ins.replace('💡 ','')} | size=11 {TXT} sfimage=lightbulb.fill {SFC}")
+        p(f"{ins.replace('💡 ','')} | size=11 {TXT} sfimage=lightbulb.fill sfcolor=#a8860b,#ffd60a")
     p("---")
     # collapsed into a submenu so the menu stays short on small screens
-    p(f"Cost & history (local $ proxy) | {SM} {TXT} sfimage=dollarsign.circle {SFC}")
+    p(f"Cost & history (local $ proxy) | {SM} {TXT} sfimage=dollarsign.circle sfcolor=#248a3d,#30d158")
     p(f"--Per day (last 7) | size=11 {DIM}")
     for d,c in last7:
         tag=" ←today" if d==today else ""
@@ -401,10 +416,10 @@ def main():
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
         p(f"--{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
     p(f"--$ = equivalent API cost · local proxy, not billed on Pro/Max | size=10 {DIM}")
-    p(f"Links | {SM} {TXT} sfimage=link {SFC}")
-    p(f"--claude-meter on GitHub | href={REPO_URL} sfimage=chevron.left.forwardslash.chevron.right {SFC}")
-    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false sfimage=folder {SFC}")
-    p(f"--Anthropic status | href=https://status.anthropic.com sfimage=antenna.radiowaves.left.and.right {SFC}")
+    p(f"Links | {SM} {TXT} sfimage=link sfcolor=#0071e3,#0a84ff")
+    p(f"--claude-meter on GitHub | href={REPO_URL} sfimage=chevron.left.forwardslash.chevron.right sfcolor=#8944ab,#bf5af2")
+    p(f"--Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false sfimage=folder sfcolor=#0071e3,#0a84ff")
+    p(f"--Anthropic status | href=https://status.anthropic.com sfimage=antenna.radiowaves.left.and.right sfcolor=#30a14e,#30d158")
 
 if __name__=="__main__":
     main()
