@@ -6,28 +6,9 @@
 
 A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall.
 
-```
-  ◔ 45%        ← menu bar: a disc that fills with your 5h load, color-coded
-  ──────────────────────────────────────────────────────────
-  5h   ▕██████▎░░░░░░░▏  45%
-    resets Fri 1:50 PM · in 3h01m
-    → ~89% at reset
-  week ▕██████▉░░░░░░░▏  49%
-    resets Tue 11 PM · in 4d12h
-    → caps Mon 12:30 AM · ~1d22h locked
-  5h 24h ▕▁▂▃▅▆█▇▅▂▄▆▏ 45%
-  ──────────────────────────────────────────────
-  ● live · 2m ago · ↻ refresh
-  ──────────────────────────────────────────────
-  ⚡ Active sessions · this machine
-  click a row → reopen in a terminal
-  Set up mosh via ZeroTier  $225 · 294k · 4m ago
-  ──────────────────────────────────────────────
-  💡 95% cached context — /compact more often
-  ──────────────────────────────────────────────
-  💵 Cost & history (local $ proxy)   ▸
-  🔗 Links                            ▸
-```
+<p align="center">
+  <img src="docs/screenshot.png" width="320" alt="claude-meter dropdown — 5h + weekly gauges, forecasts, burn rate, active sessions">
+</p>
 
 The menu-bar glyph is itself a gauge that fills with your 5‑hour load…
 
@@ -35,7 +16,11 @@ The menu-bar glyph is itself a gauge that fills with your 5‑hour load…
 |---|---|---|---|---|
 | 0% | ~25% | ~50% | ~75% | 100% |
 
-…and shifts **green → amber → red** as it fills.
+…and shifts **green → amber → red** as it fills — that little disc is all it occupies in your menu bar:
+
+<p align="center">
+  <img src="docs/menubar.png" width="420" alt="claude-meter in the macOS menu bar">
+</p>
 
 ## Why
 
