@@ -19,6 +19,9 @@ SELF   = os.path.abspath(__file__)
 CFG    = os.path.expanduser("~/.config/claude-meter")
 CACHE  = os.path.join(CFG, "real.json")
 ALERTS = os.path.join(CFG, "alerts.json")
+TREND  = os.path.join(CFG, "trend.json")
+CONFIG = os.path.join(CFG, "config.json")
+REPO_URL = "https://github.com/FHunist/claude-meter"
 TTL    = 240                      # s; scheduled runs re-ping, rapid clicks reuse cache
 IS_MAC = (platform.system() == "Darwin")
 ALERT_LEVELS = [80, 95]           # notify when a window crosses these %
@@ -170,8 +173,63 @@ def project(util,reset,L):
     proj=now+elapsed*(1.0-util)/util
     return proj if proj<reset else None
 
+def load_config():
+    cfg={"alert_levels":[80,95],"active_min":30,"dual_title":False,"title_window":"5h"}
+    try:
+        u=json.load(open(CONFIG))
+        if isinstance(u,dict):
+            for k in cfg:
+                if k in u: cfg[k]=u[k]
+    except Exception: pass
+    return cfg
+
+def status_banner(status):
+    s=(status or "").lower()
+    if not s or s=="allowed": return None
+    if "reject" in s: return ("⛔ Rate-limited — requests are being rejected","#ff3b30")
+    if "queue"  in s: return ("⏳ Requests are being queued (throttled)","#ff9f0a")
+    if "warn"   in s: return ("⚠︎ Approaching your limit","#ff9f0a")
+    return (f"status: {status}","#ff9f0a")
+
+def record_trend(real):
+    """Append the account-wide u5/u7 sample (deduped by ts); keep ~24h. Returns the series."""
+    try: data=json.load(open(TREND))
+    except Exception: data=[]
+    if real and real.get("u5") is not None:
+        ts=int(real["ts"])
+        if not data or int(data[-1][0])!=ts:
+            data.append([ts,round(real["u5"],4),round(real.get("u7") or 0,4)])
+            cutoff=time.time()-24*3600
+            data=[d for d in data if d[0]>=cutoff][-400:]
+            try: os.makedirs(CFG,exist_ok=True); json.dump(data,open(TREND,"w"))
+            except Exception: pass
+    return data
+
+def sparkline(data,hours=24,width=24):
+    if not data: return None
+    now=time.time(); span=hours*3600.0; start=now-span
+    bins=[None]*width
+    for ts,u5,_ in data:
+        if ts<start: continue
+        i=min(int((ts-start)/span*width),width-1)
+        bins[i]=u5 if bins[i] is None else max(bins[i],u5)
+    if all(b is None for b in bins): return None
+    BL="▁▂▃▄▅▆▇█"
+    return "".join("·" if b is None else BL[min(int(b*7.999),7)] for b in bins)
+
+def insight(tw,by_model):
+    total=tw["in"]+tw["cr"]+tw["cw"]
+    if total<100_000: return None
+    cr=tw["cr"]/max(1,total)
+    opus=sum(v for m,v in by_model.items() if "opus" in m.lower()); tot=sum(by_model.values()) or 1.0
+    if cr>0.85:
+        return f"💡 {round(cr*100)}% of input is cached context — /compact or /clear between tasks to trim it."
+    if opus/tot>0.9:
+        return "💡 Nearly all spend is Opus — try Sonnet for routine edits to stretch your limits."
+    return f"💡 This week: cache-reads {round(cr*100)}% of input · Opus {round(opus/tot*100)}% of spend."
+
 # ---- alerts (background desktop notifications) ----------------------------
-def check_alerts(real):
+def check_alerts(real, levels):
     if not real: return
     try: st=json.load(open(ALERTS))
     except Exception: st={}
@@ -181,7 +239,7 @@ def check_alerts(real):
         if util is None or not reset: continue
         pct=util*100; s=st.get(key) or {}
         if s.get("reset")!=reset: s={"reset":reset,"notified":0}     # window rolled over
-        crossed=max([t for t in ALERT_LEVELS if pct>=t] or [0])
+        crossed=max([t for t in levels if pct>=t] or [0])
         if crossed>s.get("notified",0):
             notify("claude-meter", f"{label} usage at {pct:.0f}% — resets in {cd(reset)}")
             s["notified"]=crossed; changed=True
@@ -199,6 +257,7 @@ def main():
         clipboard(cmd); notify("claude-meter","Resume command copied to clipboard")
         return
     force="--force" in args
+    cfg=load_config()
 
     now=datetime.now(timezone.utc).astimezone()
     start_today=now.replace(hour=0,minute=0,second=0,microsecond=0)
@@ -206,7 +265,7 @@ def main():
     wstart=now.replace(hour=23,minute=0,second=0,microsecond=0)
     while wstart.weekday()!=1 or wstart>now: wstart-=timedelta(days=1)
 
-    by_model=defaultdict(float); win=defaultdict(float); daily=defaultdict(float)
+    by_model=defaultdict(float); win=defaultdict(float); daily=defaultdict(float); tw=defaultdict(int)
     events=[]; earliest=None; today=now.date(); sessions={}
     for fp in glob.glob(os.path.expanduser("~/.claude/projects/**/*.jsonl"),recursive=True):
         s=sessions.setdefault(fp,{"sid":os.path.basename(fp)[:-6],"cwd":None,"title":None,
@@ -231,7 +290,10 @@ def main():
                 win["all"]+=c; daily[t.date()]+=c
                 if t>=start_today: win["today"]+=c
                 if t>=d30: win["30d"]+=c
-                if t>=wstart: win["week"]+=c
+                if t>=wstart:
+                    win["week"]+=c
+                    tw["in"]+=u.get("input_tokens",0); tw["out"]+=u.get("output_tokens",0)
+                    tw["cr"]+=u.get("cache_read_input_tokens",0); tw["cw"]+=u.get("cache_creation_input_tokens",0)
                 s["cost"]+=c
                 ctx=u.get("input_tokens",0)+u.get("cache_read_input_tokens",0)
                 if ctx>s["ctx"]: s["ctx"]=ctx
@@ -248,7 +310,8 @@ def main():
     bcost=active["cost"] if active else 0.0
 
     real,src=get_real(force=force)
-    check_alerts(real if src in ("live","cached","stale") else None)
+    trend_data=record_trend(real)
+    check_alerts(real if src in ("live","cached","stale") else None, cfg["alert_levels"])
 
     proj5=proj7=None
     if real and real.get("u5") is not None:
@@ -269,7 +332,7 @@ def main():
         srcline="○ proxy (no API — token expired/offline; local estimate)"
         accountwide=False
 
-    active_cut=now-timedelta(minutes=ACTIVE_MIN)
+    active_cut=now-timedelta(minutes=cfg["active_min"])
     heavy=[s for s in sessions.values() if s["last"] and s["last"]>=active_cut and s["cost"]>0.005
            and not s["sid"].startswith("agent-")]  # active only; agent-* aren't resumable
     heavy.sort(key=lambda s:-s["cost"]); heavy=heavy[:5]
@@ -283,8 +346,16 @@ def main():
     DIM="color=#6e6e73,#aeaeb2"   # secondary captions — readable, not faint
     p=print
 
-    p(f"{gauge(b_pct)} {b_pct:.0f}% | color={clr(b_pct)}")
+    if cfg["dual_title"]:
+        p(f"{gauge(b_pct)} {b_pct:.0f}  {gauge(w_pct)} {w_pct:.0f} | color={clr(max(b_pct,w_pct))}")
+    else:
+        tp = w_pct if cfg.get("title_window")=="weekly" else b_pct
+        p(f"{gauge(tp)} {tp:.0f}% | color={clr(tp)}")
     p("---")
+    sb=status_banner(real.get("status") if real else None)
+    if sb:
+        p(f"{sb[0]} | size=13 color={sb[1]}")
+        p("---")
     p(f"Usage · {'account-wide (all machines)' if accountwide else 'local estimate'} | size=11 {DIM}")
     p("---")
     p(f"5-hour window   ·  {b_reset} | size=11 {TXT}")
@@ -298,8 +369,13 @@ def main():
     p("---")
     p(f"{srcline} | size=11 {TXT}")
     p(f"↻ Refresh now (live API) | {TXT} bash={SELF} param1=--force terminal=false refresh=true")
+    spark=sparkline(trend_data) if accountwide else None
+    if spark:
+        p("---")
+        p(f"5h utilization · last 24h (account-wide) | size=11 {DIM}")
+        p(f"▕{spark}▏  now {b_pct:.0f}% | {SM} {TXT}")
     p("---")
-    p(f"Active sessions · this machine (last {ACTIVE_MIN}m) | size=11 {DIM}")
+    p(f"Active sessions · this machine (last {cfg['active_min']}m) | size=11 {DIM}")
     if heavy:
         p(f"click a row to copy its claude --resume cmd | size=10 {DIM}")
         for s in heavy:
@@ -309,7 +385,7 @@ def main():
             p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
               f"param1=--copy param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
     else:
-        p(f"no active sessions in the last {ACTIVE_MIN}m | {SM} {DIM}")
+        p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
     p("---")
     p(f"Per day (last 7) — local $ proxy | size=11 {DIM}")
     for d,c in last7:
@@ -319,9 +395,16 @@ def main():
     p(f"Today ${win['today']:,.0f}  ·  this week ${win['week']:,.0f}  ·  30d ${win['30d']:,.0f} | {MONO} {TXT}")
     p(f"All-time ${win['all']:,.0f}   (since {since}) | {MONO} {TXT}")
     p(f"$ = equivalent API cost (local proxy, not billed on Pro/Max) | size=10 {DIM}")
+    ins=insight(tw,by_model)
+    if ins: p(f"{ins} | size=11 {TXT}")
     p(f"By model | size=11 {TXT}")
     for m,v in sorted(by_model.items(),key=lambda x:-x[1]):
         p(f"{sanitize(m).replace('claude-',''):20} ${v:>8,.2f} | {SM} {TXT}")
+    p("---")
+    p(f"Links | size=11 {DIM}")
+    p(f"↗ claude-meter on GitHub | href={REPO_URL}")
+    p(f"📁 Open ~/.claude | bash=/usr/bin/open param1={pq(os.path.expanduser('~/.claude'))} terminal=false")
+    p(f"🩺 Anthropic status | href=https://status.anthropic.com")
 
 if __name__=="__main__":
     main()

@@ -17,6 +17,9 @@ A tiny macOS menu-bar gauge for your **Claude Code usage** — the real 5‑hour
   ● live — Anthropic headers · updated just now
   ↻ Refresh now (live API)
   ──────────────────────────────────────────────────────────
+  5h utilization · last 24h (account-wide)
+  ▕▁▂▃▅▄▆█▇▅▃▂▁·····▂▄▆▏  now 35%
+  ──────────────────────────────────────────────────────────
   Active sessions · this machine (last 30m)
   Set up mosh via ZeroTier   $224.95 · ctx 294k · 2 subagents · 4m ago
   …per-day burn chart · $ stats · by-model breakdown…
@@ -40,8 +43,12 @@ Claude Code shows your usage with `/usage`, but only when you go looking. claude
 - **Exact reset times** — clock time *and* countdown (`resets Tue 11:00 PM · in 4d 12h`).
 - **🔔 Threshold alerts** — a desktop notification when a window crosses 80% / 95%, once per crossing per window (runs in the background, even with the menu closed).
 - **⏳ Projected exhaustion** — "on pace to hit the weekly cap ~Mon 2 AM" from your current burn.
+- **🚦 Throttle status** — a banner if Anthropic is warning / queueing / rejecting your requests, so you know *why* Claude feels slow.
+- **📈 Utilization trend** — a 24-hour sparkline of your 5h window, **account-wide** (sampled from the headers each refresh).
 - **Active sessions (this machine)** — sessions with log activity in the last 30 min, ranked by spend, with peak context size and subagent count; click one to copy its `claude --resume` command.
 - **$ proxy stats** — per-day burn chart, today / week / 30d / all-time, and a by-model breakdown.
+- **💡 Insight line** — one computed tip from your week (e.g. "95% of input is cached context — `/compact` more often").
+- **🔗 Quick links** — jump to the repo, your `~/.claude` logs, or Anthropic's status page.
 
 ### Account-wide vs. local — important
 
@@ -87,6 +94,11 @@ The installer installs SwiftBar via Homebrew if needed, copies `claude-meter.5m.
 - **Refresh interval:** rename the file — `claude-meter.2m.py` (2 min), `.10m.py`, `.1h.py`, …
 - **Alert thresholds:** edit `ALERT_LEVELS` near the top of the plugin (default `[80, 95]`).
 - **Active-session window:** edit `ACTIVE_MIN` (default `30` min) — how recently a session must have logged to count as active.
+- **Config file (no code edits):** create `~/.config/claude-meter/config.json` with any of:
+  ```json
+  {"alert_levels": [80, 95], "active_min": 30, "dual_title": false, "title_window": "5h"}
+  ```
+  `dual_title: true` shows **both** windows in the menu bar (`◔35 ◑48`); `title_window: "weekly"` makes the single gauge track the weekly window instead of the 5h.
 - **Colors:** edit `clr()` (default: green <50%, amber <80%, red ≥80%).
 - **Offline fallback caps (optional):** drop `claude_limit.txt` (5h) / `claude_weekly_limit.txt` (weekly) into `~/.config/claude-meter/`, one number each — used only to scale the proxy bars when the API is down.
 
