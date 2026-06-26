@@ -22,6 +22,7 @@ ALERTS = os.path.join(CFG, "alerts.json")
 TTL    = 240                      # s; scheduled runs re-ping, rapid clicks reuse cache
 IS_MAC = (platform.system() == "Darwin")
 ALERT_LEVELS = [80, 95]           # notify when a window crosses these %
+ACTIVE_MIN   = 30                 # a session is "active" if it logged within this many minutes
 L5, L7 = 5 * 3600, 7 * 86400      # window lengths (s), for projection
 
 # ---- cost proxy (local $ only) -------------------------------------------
@@ -268,8 +269,9 @@ def main():
         srcline="○ proxy (no API — token expired/offline; local estimate)"
         accountwide=False
 
-    heavy=[s for s in sessions.values() if s["last"] and s["last"]>=d7 and s["cost"]>0.005
-           and not s["sid"].startswith("agent-")]  # agent-* are subagent transcripts, not resumable
+    active_cut=now-timedelta(minutes=ACTIVE_MIN)
+    heavy=[s for s in sessions.values() if s["last"] and s["last"]>=active_cut and s["cost"]>0.005
+           and not s["sid"].startswith("agent-")]  # active only; agent-* aren't resumable
     heavy.sort(key=lambda s:-s["cost"]); heavy=heavy[:5]
 
     last7=[(today-timedelta(days=i)) for i in range(6,-1,-1)]
@@ -295,17 +297,17 @@ def main():
     p(f"{srcline} | size=11")
     p(f"↻ Refresh now (live API) | bash={SELF} param1=--force terminal=false refresh=true")
     p("---")
-    p(f"Heavy sessions · 7d · this machine | size=11 {GRAY}")
+    p(f"Active sessions · this machine (last {ACTIVE_MIN}m) | size=11 {GRAY}")
     if heavy:
         p(f"click a row to copy its claude --resume cmd | size=10 {GRAY}")
         for s in heavy:
             lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:24]
             sub=f" · {s['subagents']} subagents" if s["subagents"] else ""
             ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
-            p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} | {SM} bash={SELF} "
+            p(f"{lbl}  ${s['cost']:.2f} · ctx {ctx}{sub} · {ago(s['last'].timestamp())} | {SM} bash={SELF} "
               f"param1=--copy param2={s['sid']} param3={pq(s['cwd'] or '')} terminal=false")
     else:
-        p(f"none in the last 7 days | {SM} {GRAY}")
+        p(f"no active sessions in the last {ACTIVE_MIN}m | {SM} {GRAY}")
     p("---")
     p(f"Per day (last 7) — local $ proxy | size=11 {GRAY}")
     for d,c in last7:
