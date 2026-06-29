@@ -21,6 +21,7 @@ CACHE  = os.path.join(CFG, "real.json")
 ALERTS = os.path.join(CFG, "alerts.json")
 TREND  = os.path.join(CFG, "trend.json")
 CONFIG = os.path.join(CFG, "config.json")
+NAMES  = os.path.join(CFG, "names.json")   # user-set session labels {sid: name}
 REPO_URL = "https://github.com/FHunist/claude-meter"
 TTL    = 240                      # s; scheduled runs re-ping, rapid clicks reuse cache
 IS_MAC = (platform.system() == "Darwin")
@@ -115,6 +116,26 @@ def open_session(sid,cwd,cfg):
         if r.returncode!=0: raise RuntimeError(r.stderr or "osascript failed")
     except Exception:
         clipboard(cmd); notify("claude-meter","Couldn't open terminal — resume command copied instead")
+
+# ---- session display names + rename dialog -------------------------------
+def _osa_esc(t): return str(t).replace("\\","\\\\").replace('"','\\"')
+def prompt_name(default=""):
+    """macOS text dialog returning the new label (None if cancelled; "" means reset to auto)."""
+    if not IS_MAC: return None
+    try:
+        r=subprocess.run(["osascript",
+            "-e",'display dialog "Rename this session in claude-meter (blank resets to auto):" '
+                 'default answer "'+_osa_esc(default)+'" with title "claude-meter" '
+                 'buttons {"Cancel","Save"} default button "Save"',
+            "-e",'text returned of result'],capture_output=True,text=True,timeout=120)
+        return r.stdout.rstrip("\n") if r.returncode==0 else None
+    except Exception: return None
+def load_names():
+    try: d=json.load(open(NAMES)); return d if isinstance(d,dict) else {}
+    except Exception: return {}
+def save_names(d):
+    try: os.makedirs(CFG,exist_ok=True); json.dump(d,open(NAMES,"w"))
+    except Exception: pass
 
 # ---- live rate-limit headers ---------------------------------------------
 def fetch_real():
@@ -345,7 +366,18 @@ def main():
     if args and args[0]=="--resume":                                 # row-click action
         open_session(args[1] if len(args)>1 else "", args[2] if len(args)>2 else "", cfg)
         return
+    if args and args[0]=="--rename":                                 # opt-click action
+        sid=args[1] if len(args)>1 else ""
+        if sid:
+            names=load_names(); new=prompt_name(names.get(sid,""))
+            if new is not None:
+                new=new.strip()
+                if new: names[sid]=new
+                else: names.pop(sid,None)                             # blank input resets to auto title
+                save_names(names)
+        return
     force="--force" in args
+    names=load_names()
 
     now=datetime.now(timezone.utc).astimezone()
     start_today=now.replace(hour=0,minute=0,second=0,microsecond=0)
@@ -385,9 +417,9 @@ def main():
                     tw["in"]+=u.get("input_tokens") or 0; tw["out"]+=u.get("output_tokens") or 0
                     tw["cr"]+=u.get("cache_read_input_tokens") or 0; tw["cw"]+=u.get("cache_creation_input_tokens") or 0
                 s["cost"]+=c
-                ctx=(u.get("input_tokens") or 0)+(u.get("cache_read_input_tokens") or 0)
-                if ctx>s["ctx"]: s["ctx"]=ctx
-                s["last"]=t if s["last"] is None or t>s["last"] else s["last"]
+                ctx=(u.get("input_tokens") or 0)+(u.get("cache_read_input_tokens") or 0)+(u.get("cache_creation_input_tokens") or 0)
+                if s["last"] is None or t>=s["last"]:   # live context = the LATEST request's prompt, not the session peak (stale after /compact)
+                    s["last"]=t; s["ctx"]=ctx
 
     # active 5h proxy block (fallback only)
     events.sort(); blocks=[]; cur=None; B=timedelta(hours=5)
@@ -470,12 +502,14 @@ def main():
         p("---")
         p(f"Active sessions · this machine | size=11 {DIM} {sftint('bolt.fill','#ff9500')}")
         if heavy:
-            p(f"click a row → reopen in a terminal | size=10 {DIM}")
+            p(f"click → resume · ⌥click → rename | size=10 {DIM}")
             for s in heavy:
-                lbl=sanitize(s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:18]
-                ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "—"
+                lbl=sanitize(names.get(s["sid"]) or s["title"] or (os.path.basename(s["cwd"]) if s["cwd"] else s["sid"][:8]))[:18]
+                ctx=f"{s['ctx']/1000:.0f}k" if s["ctx"] else "-"
                 p(f"{lbl}  ${s['cost']:.0f} · {ctx} · {ago(s['last'].timestamp())} | {SM} {TXT} bash={SELF} "
                   f"param1=--resume param2={pq(s['sid'])} param3={pq(s['cwd'] or '')} terminal=false")
+                p(f"✎ rename {lbl} | alternate=true {SM} {DIM} bash={SELF} "
+                  f"param1=--rename param2={pq(s['sid'])} terminal=false refresh=true")
         else:
             p(f"no active sessions in the last {cfg['active_min']}m | {SM} {DIM}")
     if SH["insight"]:
