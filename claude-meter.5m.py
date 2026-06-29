@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""claude-meter — Claude Code usage in your menu bar (Claude Pro/Max).
+"""claude-meter: Claude Code usage in your menu bar (Claude Pro/Max).
 
 The two % gauges (5-hour + weekly) come straight from Anthropic's
-`anthropic-ratelimit-unified-*` response headers, so they are ACCOUNT-WIDE —
+`anthropic-ratelimit-unified-*` response headers, so they are ACCOUNT-WIDE:
 they reflect every machine signed into your account, not just this one.
 The dollar figures and the "heavy sessions" list are a LOCAL cost proxy
 parsed from this machine's ~/.claude/projects logs.
@@ -54,7 +54,7 @@ def get_token():
         if IS_MAC:
             raw=subprocess.run(["security","find-generic-password","-s","Claude Code-credentials",
                 "-a",getpass.getuser(),"-w"],capture_output=True,text=True,timeout=8).stdout.strip()
-        else:  # Linux (best effort — verified on the waybar/Argos port)
+        else:  # Linux (best effort, verified on the waybar/Argos port)
             fp=os.path.expanduser("~/.claude/.credentials.json")
             raw=open(fp).read().strip() if os.path.exists(fp) else ""
             if not raw:
@@ -103,7 +103,7 @@ def open_session(sid,cwd,cfg):
                     'set w to (create window with default profile)\n'
                     'tell current session of w to write text "'+esc+'"\nend tell')
             osa=["osascript","-e",script]
-        elif term=="Warp":                            # no `do script` — simulate keystrokes
+        elif term=="Warp":                            # no `do script`, simulate keystrokes
             script=('tell application "Warp" to activate\ndelay 0.4\n'
                     'tell application "System Events"\n'
                     'keystroke "n" using command down\ndelay 0.5\n'
@@ -115,7 +115,7 @@ def open_session(sid,cwd,cfg):
         r=subprocess.run(osa,timeout=15,capture_output=True,text=True)
         if r.returncode!=0: raise RuntimeError(r.stderr or "osascript failed")
     except Exception:
-        clipboard(cmd); notify("claude-meter","Couldn't open terminal — resume command copied instead")
+        clipboard(cmd); notify("claude-meter","Couldn't open terminal, resume command copied instead")
 
 # ---- session display names + rename dialog -------------------------------
 def _osa_esc(t): return str(t).replace("\\","\\\\").replace('"','\\"')
@@ -234,9 +234,9 @@ def dur(secs):
 def proj_color(proj,reset,L):
     """Color the projection by how much of the window you'd be locked out for."""
     frac=(reset-proj)/L
-    if frac>0.33: return "#d70015,#ff453a"   # red   — long lockout ahead
-    if frac>0.10: return "#b25000,#ff9f0a"   # amber — moderate
-    return "#9a7d0a,#ffd60a"                  # yellow — marginal overshoot
+    if frac>0.33: return "#d70015,#ff453a"   # red   : long lockout ahead
+    if frac>0.10: return "#b25000,#ff9f0a"   # amber : moderate
+    return "#9a7d0a,#ffd60a"                  # yellow : marginal overshoot
 
 def forecast(util,reset,L):
     """Projected end-of-window state at the current average rate. (text,color) or None."""
@@ -273,7 +273,7 @@ def load_config():
 def status_banner(status):
     s=(status or "").lower()
     if not s or s=="allowed": return None
-    if "reject" in s: return ("⛔ Rate-limited — requests are being rejected","#ff3b30")
+    if "reject" in s: return ("⛔ Rate-limited: requests are being rejected","#ff3b30")
     if "queue"  in s: return ("⏳ Requests are being queued (throttled)","#ff9f0a")
     if "warn"   in s: return ("⚠︎ Approaching your limit","#ff9f0a")
     return (f"status: {status}","#ff9f0a")
@@ -330,9 +330,9 @@ def insight(tw,by_model):
     cr=tw["cr"]/max(1,total)
     opus=sum(v for m,v in by_model.items() if "opus" in m.lower()); tot=sum(by_model.values()) or 1.0
     if cr>0.85:
-        return f"💡 {round(cr*100)}% cached context — /compact more often"
+        return f"💡 {round(cr*100)}% cached context, /compact more often"
     if opus/tot>0.9:
-        return "💡 Mostly Opus — try Sonnet for routine work"
+        return "💡 Mostly Opus, try Sonnet for routine work"
     return f"💡 cache {round(cr*100)}% · Opus {round(opus/tot*100)}% of spend"
 
 # ---- alerts (background desktop notifications) ----------------------------
@@ -349,11 +349,11 @@ def check_alerts(real, levels):
         pct=util*100; s=st.get(key) or {}
         if s.get("reset")!=reset:                                    # window rolled over
             if s.get("reset") is not None and s.get("notified",0)>0: # only if we'd warned last window
-                notify("claude-meter", f"{label} window reset — full capacity again")
+                notify("claude-meter", f"{label} window reset, full capacity again")
             s={"reset":reset,"notified":0}; changed=True
         crossed=max([t for t in levels if pct>=t] or [0])
         if crossed>s.get("notified",0):
-            notify("claude-meter", f"{label} usage at {pct:.0f}% — resets in {cd(reset)}")
+            notify("claude-meter", f"{label} usage at {pct:.0f}%, resets in {cd(reset)}")
             s["notified"]=crossed; changed=True
         st[key]=s
     if changed:
@@ -461,9 +461,9 @@ def main():
     dmax=max((c for _,c in last7),default=0) or 1.0
     since=earliest.strftime("%b %d") if earliest else "?"
     MONO="font=Menlo size=13"; BIG="font=Menlo size=15"; SM="font=Menlo size=12"
-    TXT="color=#1d1d1f,#f5f5f7"   # primary text — high contrast in light & dark
-    DIM="color=#6e6e73,#aeaeb2"   # secondary captions — readable, not faint
-    # SF Symbols ignore color= — each row tints its icon via its own sfcolor=light,dark
+    TXT="color=#1d1d1f,#f5f5f7"   # primary text, high contrast in light & dark
+    DIM="color=#6e6e73,#aeaeb2"   # secondary captions, readable, not faint
+    # SF Symbols ignore color=; each row tints its icon via its own sfcolor=light,dark
     SH=cfg["show"]; OUT=[]; p=OUT.append   # buffer so hidden sections leave no orphan separators
 
     dot=status_dot(real.get("status") if real else None)
@@ -477,7 +477,7 @@ def main():
     if sb:
         p(f"{sb[0]} | size=13 color={sb[1]}")
         p("---")
-    # two windows — one bold bar line + one small meta line each
+    # two windows: one bold bar line + one small meta line each
     for label,pct,resettext,util,reset,L in (
             ("5h  ",b_pct,b_reset,(real or {}).get("u5"),(real or {}).get("r5"),L5),
             ("week",w_pct,w_reset,(real or {}).get("u7"),(real or {}).get("r7"),L7)):
@@ -551,4 +551,4 @@ if __name__=="__main__":
         print("◌ | color=#8e8e93")
         print("---")
         print(f"claude-meter hiccup ({type(e).__name__}) · ↻ retry | size=11 color=#8e8e93 "
-              f"bash={SELF} param1=--force terminal=false refresh=true")   # type only — no message/paths
+              f"bash={SELF} param1=--force terminal=false refresh=true")   # type only, no message/paths
