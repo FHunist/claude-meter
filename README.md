@@ -6,8 +6,8 @@
 
 A tiny macOS menu-bar gauge for your **Claude Code usage** on a **Claude Pro/Max** plan: the real 5‑hour and weekly rate-limit numbers Anthropic enforces, pulled live from the API's response headers (not estimated), with desktop alerts before you hit a wall. It reads your Claude Code **subscription login** (OAuth), not an API key.
 
-> [!WARNING]
-> Fully **vibe-coded** and may well contain bugs. Use at your own risk. PRs very welcome.
+> [!NOTE]
+> Mostly vibe-coded, so expect the odd rough edge. Bug reports and PRs are very welcome.
 
 <p align="center">
   <img src="docs/screenshot.png" width="320" alt="claude-meter dropdown: 5h + weekly gauges, forecasts, burn rate, active sessions">
